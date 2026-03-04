@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<!-- NuGet metadata -->
+		<IsPackable>true</IsPackable>
+		<PackageId>DigitalWonderlab.AccessibilityToolkit</PackageId>
+		<Version>1.0.0</Version>
+		<Authors>Digital Wonderlab</Authors>
+		<Company>Digital Wonderlab</Company>
+		<Description>Accessibility Toolkit for Umbraco 17+. Adds a workspace view tab to content pages that fetches published HTML, runs WCAG checks, and displays a scored report with CSV export.</Description>
+		<PackageTags>umbraco;umbraco-cms;accessibility;wcag;a11y;umbraco-marketplace</PackageTags>
+		<RepositoryUrl>https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit</PackageProjectUrl>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageIcon>icon.png</PackageIcon>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+		<!-- Key for Umbraco App_Plugins packing -->
+		<ContentTargetFolders>content</ContentTargetFolders>
+		<IncludeBuildOutput>true</IncludeBuildOutput>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Umbraco.Cms.Core" Version="[17.0.0,18.0.0)" />
+		<PackageReference Include="Umbraco.Cms.Web.Common" Version="[17.0.0,18.0.0)" />
+		<PackageReference Include="HtmlAgilityPack" Version="1.12.*" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<!-- Pack App_Plugins as content -->
+	<ItemGroup>
+		<Content Include="App_Plugins\AccessibilityToolkit\**" ExcludeFromSingleFile="true">
+			<Pack>true</Pack>
+			<CopyToPublishDirectory>Always</CopyToPublishDirectory>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+
+		<!-- Pack .targets to buildTransitive (Umbraco standard for copy on build) -->
+		<None Include="buildTransitive\**" Pack="true" PackagePath="buildTransitive" />
+	</ItemGroup>
+
+	<!-- README + icon -->
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+		<None Include="icon.png" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+</Project>

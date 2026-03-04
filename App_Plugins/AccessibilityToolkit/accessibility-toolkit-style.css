@@ -1,0 +1,475 @@
+:host {
+    padding: 20px;
+    display: block;
+    box-sizing: border-box;
+}
+
+/* Header */
+.a11y-wrapper h2 {
+    font-size: 1.6em;
+    font-weight: bold;
+    margin: 0 0 4px 0;
+}
+
+.a11y-wrapper h3 {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin: 0;
+}
+
+.a11y-wrapper p {
+    margin: 0;
+    color: #666;
+}
+
+.a11y-header-box {
+    margin-bottom: 15px;
+}
+
+.a11y-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.a11y-header-text {
+    flex: 1;
+    min-width: 200px;
+}
+
+.a11y-controls {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.a11y-control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.a11y-control-group label {
+    font-weight: 600;
+    font-size: 0.85em;
+    color: #555;
+}
+
+.a11y-control-group select {
+    padding: 7px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.9em;
+    background: white;
+}
+
+/* Loading */
+.a11y-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 30px;
+    font-size: 1.05em;
+    color: #666;
+}
+
+.a11y-spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid currentColor;
+    border-top: 2px solid transparent;
+    border-radius: 50%;
+    animation: a11y-spin 1s linear infinite;
+}
+
+@keyframes a11y-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error */
+.a11y-error {
+    padding: 15px 20px;
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-size: 0.95em;
+}
+
+/* Score Box */
+.a11y-score-box {
+    margin-bottom: 15px;
+}
+
+.a11y-score-section {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    flex-wrap: wrap;
+}
+
+.a11y-gauge-container {
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.a11y-gauge {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 5px solid #e5e7eb;
+    transition: border-color 0.3s;
+}
+
+.a11y-gauge-green {
+    border-color: #22c55e;
+}
+
+.a11y-gauge-orange {
+    border-color: #f59e0b;
+}
+
+.a11y-gauge-red {
+    border-color: #ef4444;
+}
+
+.a11y-score-value {
+    font-size: 1.8em;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.a11y-gauge-green .a11y-score-value { color: #16a34a; }
+.a11y-gauge-orange .a11y-score-value { color: #d97706; }
+.a11y-gauge-red .a11y-score-value { color: #dc2626; }
+
+.a11y-score-label {
+    margin-top: 6px;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: #555;
+}
+
+/* Impact badges */
+.a11y-impact-summary {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.a11y-impact-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.a11y-impact-badge span {
+    font-size: 1.1em;
+    font-weight: 800;
+}
+
+.a11y-impact-critical {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.a11y-impact-serious {
+    background: #fff7ed;
+    color: #9a3412;
+    border: 1px solid #fed7aa;
+}
+
+.a11y-impact-moderate {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+
+.a11y-impact-minor {
+    background: #f0fdf4;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.a11y-meta {
+    font-size: 0.8em;
+    color: #888;
+    width: 100%;
+    margin-top: 5px;
+}
+
+/* Issues box */
+.a11y-issues-box {
+    margin-bottom: 15px;
+}
+
+.a11y-issues-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.a11y-issues-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.a11y-issues-actions select {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.85em;
+    background: white;
+}
+
+.a11y-no-issues {
+    padding: 25px;
+    text-align: center;
+    color: #16a34a;
+    font-weight: 600;
+    font-size: 1.05em;
+    background: #f0fdf4;
+    border-radius: 6px;
+    border: 1px solid #bbf7d0;
+}
+
+/* Issues table */
+.a11y-table-wrapper {
+    overflow-x: auto;
+}
+
+.a11y-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    font-size: 0.9em;
+}
+
+.a11y-table th,
+.a11y-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.a11y-table th {
+    font-weight: 700;
+    background: #fafafa;
+    border-bottom: 2px solid #e5e7eb;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+}
+
+.a11y-th-sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.a11y-th-sortable:hover {
+    color: #1b264f;
+}
+
+.a11y-table tbody tr.a11y-issue-row:hover {
+    background: #f9fafb;
+}
+
+.a11y-desc-cell {
+    max-width: 400px;
+}
+
+/* Impact badges in table */
+.a11y-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.a11y-badge-critical {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.a11y-badge-serious {
+    background: #fff7ed;
+    color: #9a3412;
+}
+
+.a11y-badge-moderate {
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.a11y-badge-minor {
+    background: #f0fdf4;
+    color: #166534;
+}
+
+/* Instance count badge */
+.a11y-count-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.75em;
+    font-weight: 700;
+    background: #e5e7eb;
+    color: #374151;
+    vertical-align: middle;
+}
+
+/* Instances list in detail */
+.a11y-instances-list {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.a11y-instance {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 4px 8px;
+    background: #e8e8e8;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.a11y-instance code {
+    word-break: break-all;
+    background: transparent;
+    padding: 0;
+}
+
+.a11y-instance-num {
+    font-weight: 700;
+    color: #666;
+    flex-shrink: 0;
+    min-width: 20px;
+}
+
+.a11y-instance-more {
+    font-style: italic;
+    color: #888;
+    padding: 2px 8px;
+    font-size: 0.9em;
+}
+
+/* Expand button */
+.a11y-expand-btn {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 8px;
+    font-size: 0.75em;
+    color: #666;
+    transition: background 0.2s;
+}
+
+.a11y-expand-btn:hover {
+    background: #f0f0f0;
+}
+
+/* Detail row */
+.a11y-detail-row td {
+    padding: 0 12px 12px 12px;
+    background: #fafafa;
+}
+
+.a11y-detail {
+    padding: 10px 15px;
+    background: #f5f5f5;
+    border-radius: 6px;
+    font-size: 0.88em;
+}
+
+.a11y-detail-field {
+    margin-bottom: 6px;
+}
+
+.a11y-detail-field:last-child {
+    margin-bottom: 0;
+}
+
+.a11y-detail code {
+    background: #e8e8e8;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.9em;
+    word-break: break-all;
+}
+
+.a11y-table code {
+    background: #f0f0f0;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+/* Footer */
+.a11y-copy {
+    width: 100%;
+    margin-top: 15px;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    font-weight: 600;
+}
+
+.a11y-copy a {
+    color: #999;
+    font-size: 12px;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.a11y-copy a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .a11y-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .a11y-controls {
+        flex-direction: column;
+        width: 100%;
+    }
+    .a11y-score-section {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .a11y-impact-summary {
+        flex-direction: column;
+    }
+    .a11y-issues-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

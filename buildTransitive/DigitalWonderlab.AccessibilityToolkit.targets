@@ -1,0 +1,26 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+	<PropertyGroup>
+		<AccessibilityToolkitContentFilesPath>$(MSBuildThisFileDirectory)..\content\App_Plugins\AccessibilityToolkit\**\*</AccessibilityToolkitContentFilesPath>
+	</PropertyGroup>
+
+	<Target Name="CopyAccessibilityToolkitAssets" BeforeTargets="Build">
+		<ItemGroup>
+			<AccessibilityToolkitContentFiles Include="$(AccessibilityToolkitContentFilesPath)" />
+		</ItemGroup>
+		<Message Text="Copying AccessibilityToolkit files: $(AccessibilityToolkitContentFilesPath) - #@(AccessibilityToolkitContentFiles->Count()) files" Importance="high" />
+		<Copy
+		  SourceFiles="@(AccessibilityToolkitContentFiles)"
+		  DestinationFiles="@(AccessibilityToolkitContentFiles->'$(MSBuildProjectDirectory)\App_Plugins\AccessibilityToolkit\%(RecursiveDir)%(Filename)%(Extension)')"
+		  SkipUnchangedFiles="true" />
+	</Target>
+
+	<Target Name="ClearAccessibilityToolkitAssets" BeforeTargets="Clean">
+		<ItemGroup>
+			<AccessibilityToolkitDir Include="$(MSBuildProjectDirectory)\App_Plugins\AccessibilityToolkit\" />
+		</ItemGroup>
+		<Message Text="Clear old AccessibilityToolkit data" Importance="high" />
+		<RemoveDir Directories="@(AccessibilityToolkitDir)" />
+	</Target>
+
+</Project>
