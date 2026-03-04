@@ -7,14 +7,14 @@ using HtmlAgilityPack;
 namespace DigitalWonderlab.AccessibilityToolkit.Checks;
 
 /// <summary>
-/// Basic colour contrast detection from inline styles.
-/// WCAG 1.4.3 – Contrast (Minimum) (Level AA)
-/// Only detects inline style colour pairs - cannot check external CSS.
+/// WCAG 1.4.6 – Contrast (Enhanced) (Level AAA)
+/// Detects inline style colour pairs below 7:1 contrast ratio.
+/// Reuses shared ContrastCalculator utility.
 /// </summary>
-public class ColorContrastCheck : IAccessibilityCheck
+public class EnhancedContrastCheck : IAccessibilityCheck
 {
-    public string RuleId => "color-contrast";
-    public WcagLevel MinimumLevel => WcagLevel.AA;
+    public string RuleId => "enhanced-contrast";
+    public WcagLevel MinimumLevel => WcagLevel.AAA;
 
     private static readonly Regex ColorRegex = new(@"(?:^|;)\s*color\s*:\s*([^;]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex BgColorRegex = new(@"background(?:-color)?\s*:\s*([^;]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -34,7 +34,6 @@ public class ColorContrastCheck : IAccessibilityCheck
             var fgMatch = ColorRegex.Match(style);
             var bgMatch = BgColorRegex.Match(style);
 
-            // Only check if both foreground and background are set inline
             if (!fgMatch.Success || !bgMatch.Success) continue;
 
             var fg = ContrastCalculator.ParseColor(fgMatch.Groups[1].Value.Trim());
@@ -44,21 +43,20 @@ public class ColorContrastCheck : IAccessibilityCheck
 
             var ratio = ContrastCalculator.CalculateContrastRatio(fg.Value, bg.Value);
 
-            // WCAG AA requires 4.5:1 for normal text, 3:1 for large text
-            // We can't reliably detect font size from inline styles alone, so use 4.5:1
-            if (ratio < 4.5)
+            // AAA requires 7:1 for normal text - only flag if it passes AA (4.5:1) but fails AAA
+            if (ratio >= 4.5 && ratio < 7.0)
             {
                 issues.Add(new AccessibilityIssue
                 {
                     RuleId = RuleId,
-                    Description = $"Potential low contrast ratio ({ratio:F1}:1) between text colour and background colour.",
+                    Description = $"Contrast ratio ({ratio:F1}:1) meets AA but not AAA enhanced contrast (7:1 required).",
                     Category = AccessibilityCategory.Meta,
-                    Level = WcagLevel.AA,
-                    WcagCriterion = "1.4.3",
-                    Impact = ratio < 3.0 ? "critical" : "serious",
+                    Level = WcagLevel.AAA,
+                    WcagCriterion = "1.4.6",
+                    Impact = "moderate",
                     Element = TruncateOuterHtml(node),
                     Selector = BuildSelector(node),
-                    Recommendation = $"Ensure text has a contrast ratio of at least 4.5:1 for normal text (current: {ratio:F1}:1)."
+                    Recommendation = $"Increase contrast ratio to at least 7:1 for enhanced accessibility (current: {ratio:F1}:1)."
                 });
             }
         }

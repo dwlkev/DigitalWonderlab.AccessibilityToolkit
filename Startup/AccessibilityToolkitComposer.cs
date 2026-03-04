@@ -37,5 +37,30 @@ public class AccessibilityToolkitComposer : IComposer
         builder.Services.AddScoped<IAccessibilityCheck, ListStructureCheck>();
         builder.Services.AddScoped<IAccessibilityCheck, FormGroupingCheck>();
         builder.Services.AddScoped<IAccessibilityCheck, TargetBlankCheck>();
+
+        // Level A – new checks
+        builder.Services.AddScoped<IAccessibilityCheck, BypassBlocksCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, TabindexCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, KeyboardEventCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, LabelInNameCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, AutocompleteCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, MediaAlternativeCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, ErrorIdentificationCheck>();
+
+        // Level AA – new checks
+        builder.Services.AddScoped<IAccessibilityCheck, LanguageOfPartsCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, StatusMessageCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, TextSpacingCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, ReflowCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, InputPurposeCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, FocusNotRestrictedCheck>();
+
+        // Level AAA – new checks
+        builder.Services.AddScoped<IAccessibilityCheck, LinkPurposeFullCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, SectionHeadingsCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, EnhancedContrastCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, TargetSizeCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, AbbreviationsCheck>();
+        builder.Services.AddScoped<IAccessibilityCheck, ReadingLevelCheck>();
     }
 }

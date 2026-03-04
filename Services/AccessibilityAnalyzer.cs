@@ -33,6 +33,9 @@ public class AccessibilityAnalyzer : IAccessibilityAnalyzer
             allIssues.AddRange(issues);
         }
 
+        // Filter individual issues by level (a check may emit issues above its MinimumLevel)
+        allIssues = allIssues.Where(i => i.Level <= level).ToList();
+
         var score = CalculateScore(allIssues);
 
         var categorySummary = allIssues

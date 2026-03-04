@@ -7,7 +7,7 @@ namespace DigitalWonderlab.AccessibilityToolkit.Checks;
 public class TargetBlankCheck : IAccessibilityCheck
 {
     public string RuleId => "target-blank";
-    public WcagLevel MinimumLevel => WcagLevel.A;
+    public WcagLevel MinimumLevel => WcagLevel.AAA;
 
     private static readonly string[] NewWindowPhrases = [
         "new window", "new tab", "opens in", "external", "(opens"
@@ -47,7 +47,7 @@ public class TargetBlankCheck : IAccessibilityCheck
                     RuleId = RuleId,
                     Description = "Link opens in a new tab without indicating this to the user.",
                     Category = AccessibilityCategory.Links,
-                    Level = WcagLevel.A,
+                    Level = WcagLevel.AAA,
                     WcagCriterion = "3.2.5",
                     Impact = "moderate",
                     Element = TruncateOuterHtml(link),

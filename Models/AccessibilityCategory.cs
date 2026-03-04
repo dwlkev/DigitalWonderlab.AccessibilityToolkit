@@ -15,5 +15,7 @@ public enum AccessibilityCategory
     Tables,
     Meta,
     Media,
-    Interactivity
+    Interactivity,
+    Navigation,
+    Keyboard
 }
