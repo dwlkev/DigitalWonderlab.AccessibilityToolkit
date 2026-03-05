@@ -1,0 +1,131 @@
+namespace DigitalWonderlab.AccessibilityToolkit.Checks.Utilities;
+
+public static class WcagReference
+{
+    private static readonly Dictionary<string, string> CriterionSlugs = new()
+    {
+        // 1.1 Text Alternatives
+        ["1.1.1"] = "non-text-content",
+
+        // 1.2 Time-based Media
+        ["1.2.1"] = "audio-only-and-video-only-prerecorded",
+        ["1.2.2"] = "captions-prerecorded",
+        ["1.2.3"] = "audio-description-or-media-alternative-prerecorded",
+        ["1.2.4"] = "captions-live",
+        ["1.2.5"] = "audio-description-prerecorded",
+        ["1.2.6"] = "sign-language-prerecorded",
+        ["1.2.7"] = "extended-audio-description-prerecorded",
+        ["1.2.8"] = "media-alternative-prerecorded",
+        ["1.2.9"] = "audio-only-live",
+
+        // 1.3 Adaptable
+        ["1.3.1"] = "info-and-relationships",
+        ["1.3.2"] = "meaningful-sequence",
+        ["1.3.3"] = "sensory-characteristics",
+        ["1.3.4"] = "orientation",
+        ["1.3.5"] = "identify-input-purpose",
+        ["1.3.6"] = "identify-purpose",
+
+        // 1.4 Distinguishable
+        ["1.4.1"] = "use-of-color",
+        ["1.4.2"] = "audio-control",
+        ["1.4.3"] = "contrast-minimum",
+        ["1.4.4"] = "resize-text",
+        ["1.4.5"] = "images-of-text",
+        ["1.4.6"] = "contrast-enhanced",
+        ["1.4.7"] = "low-or-no-background-audio",
+        ["1.4.8"] = "visual-presentation",
+        ["1.4.9"] = "images-of-text-no-exception",
+        ["1.4.10"] = "reflow",
+        ["1.4.11"] = "non-text-contrast",
+        ["1.4.12"] = "text-spacing",
+        ["1.4.13"] = "content-on-hover-or-focus",
+
+        // 2.1 Keyboard Accessible
+        ["2.1.1"] = "keyboard",
+        ["2.1.2"] = "no-keyboard-trap",
+        ["2.1.3"] = "keyboard-no-exception",
+        ["2.1.4"] = "character-key-shortcuts",
+
+        // 2.2 Enough Time
+        ["2.2.1"] = "timing-adjustable",
+        ["2.2.2"] = "pause-stop-hide",
+        ["2.2.3"] = "no-timing",
+        ["2.2.4"] = "interruptions",
+        ["2.2.5"] = "re-authenticating",
+        ["2.2.6"] = "timeouts",
+
+        // 2.3 Seizures and Physical Reactions
+        ["2.3.1"] = "three-flashes-or-below-threshold",
+        ["2.3.2"] = "three-flashes",
+        ["2.3.3"] = "animation-from-interactions",
+
+        // 2.4 Navigable
+        ["2.4.1"] = "bypass-blocks",
+        ["2.4.2"] = "page-titled",
+        ["2.4.3"] = "focus-order",
+        ["2.4.4"] = "link-purpose-in-context",
+        ["2.4.5"] = "multiple-ways",
+        ["2.4.6"] = "headings-and-labels",
+        ["2.4.7"] = "focus-visible",
+        ["2.4.8"] = "location",
+        ["2.4.9"] = "link-purpose-link-only",
+        ["2.4.10"] = "section-headings",
+
+        // 2.5 Input Modalities
+        ["2.5.1"] = "pointer-gestures",
+        ["2.5.2"] = "pointer-cancellation",
+        ["2.5.3"] = "label-in-name",
+        ["2.5.4"] = "motion-actuation",
+        ["2.5.5"] = "target-size",
+        ["2.5.6"] = "concurrent-input-mechanisms",
+
+        // 3.1 Readable
+        ["3.1.1"] = "language-of-page",
+        ["3.1.2"] = "language-of-parts",
+        ["3.1.3"] = "unusual-words",
+        ["3.1.4"] = "abbreviations",
+        ["3.1.5"] = "reading-level",
+        ["3.1.6"] = "pronunciation",
+
+        // 3.2 Predictable
+        ["3.2.1"] = "on-focus",
+        ["3.2.2"] = "on-input",
+        ["3.2.3"] = "consistent-navigation",
+        ["3.2.4"] = "consistent-identification",
+        ["3.2.5"] = "change-on-request",
+
+        // 3.3 Input Assistance
+        ["3.3.1"] = "error-identification",
+        ["3.3.2"] = "labels-or-instructions",
+        ["3.3.3"] = "error-suggestion",
+        ["3.3.4"] = "error-prevention-legal-financial-data",
+        ["3.3.5"] = "help",
+        ["3.3.6"] = "error-prevention-all",
+
+        // 4.1 Compatible
+        ["4.1.1"] = "parsing",
+        ["4.1.2"] = "name-role-value",
+        ["4.1.3"] = "status-messages",
+    };
+
+    public static string GetUnderstandingUrl(string criterion)
+    {
+        if (string.IsNullOrWhiteSpace(criterion))
+            return string.Empty;
+
+        return CriterionSlugs.TryGetValue(criterion.Trim(), out var slug)
+            ? $"https://www.w3.org/WAI/WCAG21/Understanding/{slug}.html"
+            : string.Empty;
+    }
+
+    public static string GetQuickRefUrl(string criterion)
+    {
+        if (string.IsNullOrWhiteSpace(criterion))
+            return string.Empty;
+
+        return CriterionSlugs.TryGetValue(criterion.Trim(), out var slug)
+            ? $"https://www.w3.org/WAI/WCAG21/quickref/#{slug}"
+            : string.Empty;
+    }
+}

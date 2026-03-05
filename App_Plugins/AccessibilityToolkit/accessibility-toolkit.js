@@ -9,6 +9,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     #result = null;
     #loading = false;
     #level = "AA";
+    #pageHistory = [];
+    #visualChecksEnabled = false;
 
     constructor() {
         super();
@@ -27,8 +29,14 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             this.#workspaceContext = context;
             this.observe(context.unique, (unique) => {
                 this.#nodeKey = unique;
+                // Load page history once we know the node key
+                if (this.#nodeKey) {
+                    this.#loadPageHistory();
+                }
             });
         });
+
+        this.#loadFeatures();
     }
 
     #loadStyles() {
@@ -36,6 +44,61 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         link.setAttribute("rel", "stylesheet");
         link.setAttribute("href", "/App_Plugins/AccessibilityToolkit/accessibility-toolkit-style.css");
         this.shadowRoot.appendChild(link);
+    }
+
+    async #loadFeatures() {
+        try {
+            const response = await fetch("/umbraco/api/accessibilitytoolkit/features");
+            if (!response.ok) return;
+            const data = await response.json();
+            this.#visualChecksEnabled = data.visualChecks === true;
+            this.#renderVisualChecksSection();
+        } catch {
+            // Silently ignore — defaults to locked
+        }
+    }
+
+    #renderVisualChecksSection() {
+        const box = this.shadowRoot.getElementById("a11y-visual-checks-box");
+        if (!box) return;
+
+        box.style.display = "block";
+
+        const content = this.shadowRoot.getElementById("a11y-visual-checks-content");
+        if (!content) return;
+
+        if (this.#visualChecksEnabled) {
+            content.innerHTML = `
+                <div class="a11y-visual-checks-unlocked">
+                    <div class="a11y-dashboard-section-header">
+                        <h3>Visual Checks</h3>
+                    </div>
+                    <p>Run browser-based accessibility checks that analyse computed styles, color contrast, focus indicators, and more.</p>
+                    <div style="margin-top: 12px;">
+                        <uui-button label="Run Visual Scan" look="primary" color="positive" disabled>Coming Soon</uui-button>
+                    </div>
+                </div>
+            `;
+        } else {
+            content.innerHTML = `
+                <div class="a11y-premium-locked">
+                    <div class="a11y-premium-badge">PRO</div>
+                    <div class="a11y-dashboard-section-header">
+                        <h3>Visual Accessibility Checks</h3>
+                    </div>
+                    <p>Go beyond HTML analysis. Visual checks render your page in a real browser to catch issues that static analysis cannot.</p>
+                    <ul class="a11y-premium-features">
+                        <li>Color contrast (computed styles, alpha blending, gradients)</li>
+                        <li>Touch/click target size (actual rendered bounding boxes)</li>
+                        <li>Focus indicator visibility (triggered focus states)</li>
+                        <li>Text reflow at 320px viewport width</li>
+                        <li>Text spacing tolerance (clipping detection)</li>
+                        <li>Z-index / visibility stacking issues</li>
+                    </ul>
+                    <a href="#" class="a11y-premium-cta" id="a11y-premium-cta-btn">Learn More</a>
+                </div>
+            `;
+        }
     }
 
     #render() {
@@ -131,12 +194,38 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                 </uui-box>
             </div>
 
+            <uui-box id="a11y-page-history-box" class="a11y-page-history-box" style="display:none;">
+                <div class="a11y-dashboard-section-header">
+                    <h3>Scan History</h3>
+                </div>
+                <div id="a11y-page-history-empty" class="a11y-dashboard-empty" style="display:none;">
+                    No scan history for this page yet.
+                </div>
+                <div class="a11y-table-wrapper">
+                    <table class="a11y-table" id="a11y-page-history-table" style="display:none;">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Score</th>
+                                <th>Level</th>
+                                <th>Issues</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="a11y-page-history-tbody"></tbody>
+                    </table>
+                </div>
+            </uui-box>
+
+            <uui-box id="a11y-visual-checks-box" class="a11y-visual-checks-box" style="display:none;">
+                <div id="a11y-visual-checks-content"></div>
+            </uui-box>
+
             <div class="a11y-copy">Created with care by <a href="https://digitalwonderlab.com" target="_blank">Digital Wonderlab</a></div>
         `;
 
         this.shadowRoot.appendChild(container);
 
-        // Bind events after DOM is in shadowRoot
         requestAnimationFrame(() => this.#bindEvents());
     }
 
@@ -151,7 +240,6 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         exportBtn?.addEventListener("click", () => this.#exportCsv());
         filterCategory?.addEventListener("change", () => this.#renderIssuesTable());
 
-        // Sortable headers
         this.shadowRoot.querySelectorAll(".a11y-th-sortable").forEach((th) => {
             th.addEventListener("click", () => this.#sortBy(th.dataset.sort));
         });
@@ -188,6 +276,9 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                     message: `Score: ${this.#result.score}/100 with ${this.#result.totalIssues} issue(s) found.`,
                 },
             });
+
+            // Refresh page history after a successful check
+            this.#loadPageHistory();
         } catch (error) {
             console.error("Accessibility check failed", error);
             this.#showError(error.message);
@@ -199,6 +290,77 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         }
     }
 
+    // --- Page History ---
+
+    async #loadPageHistory() {
+        if (!this.#nodeKey) return;
+
+        try {
+            const response = await fetch(`/umbraco/api/accessibilitytoolkit/history/${this.#nodeKey}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            this.#pageHistory = await response.json();
+            this.#renderPageHistory();
+        } catch (err) {
+            console.error("Failed to load page history", err);
+        }
+    }
+
+    #renderPageHistory() {
+        const box = this.shadowRoot.getElementById("a11y-page-history-box");
+        const table = this.shadowRoot.getElementById("a11y-page-history-table");
+        const tbody = this.shadowRoot.getElementById("a11y-page-history-tbody");
+        const empty = this.shadowRoot.getElementById("a11y-page-history-empty");
+
+        box.style.display = "block";
+        tbody.innerHTML = "";
+
+        if (this.#pageHistory.length === 0) {
+            table.style.display = "none";
+            empty.style.display = "block";
+            return;
+        }
+
+        table.style.display = "";
+        empty.style.display = "none";
+
+        for (const entry of this.#pageHistory) {
+            const tr = document.createElement("tr");
+            const scoreClass = entry.overallScore >= 90 ? "a11y-score-good"
+                : entry.overallScore >= 70 ? "a11y-score-ok"
+                : "a11y-score-poor";
+
+            const dateStr = new Date(entry.scannedAt).toLocaleString();
+
+            tr.innerHTML = `
+                <td class="a11y-dashboard-date">${dateStr}</td>
+                <td><span class="a11y-dashboard-score ${scoreClass}">${entry.overallScore}</span></td>
+                <td>${this.#escapeHtml(entry.wcagLevel)}</td>
+                <td>${entry.totalIssues}</td>
+                <td><button class="a11y-dashboard-delete-btn" data-id="${entry.id}" title="Delete">&times;</button></td>
+            `;
+
+            const deleteBtn = tr.querySelector(".a11y-dashboard-delete-btn");
+            deleteBtn?.addEventListener("click", () => this.#deleteHistoryEntry(entry.id));
+
+            tbody.appendChild(tr);
+        }
+    }
+
+    async #deleteHistoryEntry(id) {
+        try {
+            const response = await fetch(`/umbraco/api/accessibilitytoolkit/history/${id}`, { method: "DELETE" });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            this.#pageHistory = this.#pageHistory.filter(r => r.id !== id);
+            this.#renderPageHistory();
+        } catch (err) {
+            this.#notificationContext?.peek("danger", {
+                data: { headline: "Delete failed", message: err.message },
+            });
+        }
+    }
+
+    // --- Results rendering ---
+
     #renderResults() {
         const result = this.#result;
         if (!result) return;
@@ -206,7 +368,6 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         const resultsDiv = this.shadowRoot.getElementById("a11y-results");
         resultsDiv.style.display = "block";
 
-        // Score gauge
         const score = result.score;
         const gauge = this.shadowRoot.getElementById("a11y-gauge");
         const scoreValue = this.shadowRoot.getElementById("a11y-score-value");
@@ -225,17 +386,14 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             scoreLabel.textContent = "Poor";
         }
 
-        // Impact counts
         this.shadowRoot.getElementById("a11y-count-critical").textContent = result.criticalCount;
         this.shadowRoot.getElementById("a11y-count-serious").textContent = result.seriousCount;
         this.shadowRoot.getElementById("a11y-count-moderate").textContent = result.moderateCount;
         this.shadowRoot.getElementById("a11y-count-minor").textContent = result.minorCount;
 
-        // Meta
         this.shadowRoot.getElementById("a11y-checks-run").textContent = `${result.totalChecks} checks run`;
         this.shadowRoot.getElementById("a11y-url").textContent = result.url;
 
-        // Populate category filter
         const filterCategory = this.shadowRoot.getElementById("a11y-filter-category");
         filterCategory.innerHTML = '<option value="">All Categories</option>';
         if (result.categorySummary) {
@@ -307,7 +465,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                 <td><span class="a11y-badge a11y-badge-${this.#escapeHtml(group.impact)}">${this.#escapeHtml(group.impact)}</span>${countBadge}</td>
                 <td>${this.#escapeHtml(group.category)}</td>
                 <td class="a11y-desc-cell">${this.#escapeHtml(group.description)}</td>
-                <td><code>${this.#escapeHtml(group.wcagCriterion)}</code></td>
+                <td>${group.wcagUrl ? `<a href="${this.#escapeHtml(group.wcagUrl)}" target="_blank" rel="noopener" title="WCAG guidance" class="a11y-wcag-link"><code>${this.#escapeHtml(group.wcagCriterion)}</code></a>` : `<code>${this.#escapeHtml(group.wcagCriterion)}</code>`}</td>
                 <td><button class="a11y-expand-btn" data-idx="${idx}" title="Show details">&#9660;</button></td>
             `;
 
@@ -347,7 +505,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                     <div class="a11y-detail">
                         ${instancesHtml}
                         <div class="a11y-detail-field"><strong>Recommendation:</strong> ${this.#escapeHtml(group.recommendation)}</div>
-                        <div class="a11y-detail-field"><strong>Rule:</strong> ${this.#escapeHtml(group.ruleId)} &middot; <strong>Level:</strong> ${this.#escapeHtml(group.level)} &middot; <strong>WCAG:</strong> ${this.#escapeHtml(group.wcagCriterion)}</div>
+                        <div class="a11y-detail-field"><strong>Rule:</strong> ${this.#escapeHtml(group.ruleId)} &middot; <strong>Level:</strong> ${this.#escapeHtml(group.level)} &middot; <strong>WCAG:</strong> ${group.wcagUrl ? `<a href="${this.#escapeHtml(group.wcagUrl)}" target="_blank" rel="noopener" class="a11y-wcag-link">${this.#escapeHtml(group.wcagCriterion)}</a>` : this.#escapeHtml(group.wcagCriterion)}</div>
                     </div>
                 </td>
             `;

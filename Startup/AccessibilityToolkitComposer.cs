@@ -1,8 +1,10 @@
 using DigitalWonderlab.AccessibilityToolkit.Checks;
+using DigitalWonderlab.AccessibilityToolkit.Migrations;
 using DigitalWonderlab.AccessibilityToolkit.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
+using Umbraco.Cms.Core.Notifications;
 
 namespace DigitalWonderlab.AccessibilityToolkit.Startup;
 
@@ -17,6 +19,10 @@ public class AccessibilityToolkitComposer : IComposer
         });
 
         builder.Services.AddScoped<IAccessibilityAnalyzer, AccessibilityAnalyzer>();
+        builder.Services.AddScoped<IAccessibilityResultStore, AccessibilityResultStore>();
+        builder.Services.AddSingleton<IAccessibilityLicenceService, AccessibilityLicenceService>();
+
+        builder.AddNotificationHandler<UmbracoApplicationStartingNotification, RunAccessibilityMigration>();
 
         // Register all accessibility checks
         builder.Services.AddScoped<IAccessibilityCheck, HeadingHierarchyCheck>();

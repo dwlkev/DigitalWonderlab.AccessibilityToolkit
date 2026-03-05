@@ -1,0 +1,71 @@
+using DigitalWonderlab.AccessibilityToolkit.Models;
+using NPoco;
+using Umbraco.Cms.Infrastructure.Scoping;
+
+namespace DigitalWonderlab.AccessibilityToolkit.Services;
+
+public class AccessibilityResultStore : IAccessibilityResultStore
+{
+    private readonly IScopeProvider _scopeProvider;
+
+    public AccessibilityResultStore(IScopeProvider scopeProvider)
+    {
+        _scopeProvider = scopeProvider;
+    }
+
+    public IEnumerable<AccessibilityResultDto> GetHistoryForNode(Guid nodeKey)
+    {
+        using var scope = _scopeProvider.CreateScope(autoComplete: true);
+        return scope.Database.Fetch<AccessibilityResultDto>(
+            new Sql("SELECT * FROM dwAccessibilityResults WHERE ContentNodeKey = @0 ORDER BY ScannedAt DESC", nodeKey));
+    }
+
+    public IEnumerable<AccessibilityResultDto> GetRecentResults(int count)
+    {
+        using var scope = _scopeProvider.CreateScope(autoComplete: true);
+        return scope.Database.Fetch<AccessibilityResultDto>(
+            new Sql("SELECT TOP (@0) * FROM dwAccessibilityResults ORDER BY ScannedAt DESC", count));
+    }
+
+    public void SaveResult(AccessibilityResultDto dto)
+    {
+        using var scope = _scopeProvider.CreateScope();
+        scope.Database.Insert(dto);
+        scope.Complete();
+    }
+
+    public void DeleteResult(int id)
+    {
+        using var scope = _scopeProvider.CreateScope();
+        scope.Database.Delete<AccessibilityResultDto>(id);
+        scope.Complete();
+    }
+
+    public void SaveAudit(AccessibilityAuditDto dto)
+    {
+        using var scope = _scopeProvider.CreateScope();
+        scope.Database.Insert(dto);
+        scope.Complete();
+    }
+
+    public IEnumerable<AccessibilityAuditDto> GetRecentAudits(int count)
+    {
+        using var scope = _scopeProvider.CreateScope(autoComplete: true);
+        return scope.Database.Fetch<AccessibilityAuditDto>(
+            new Sql("SELECT Id, RootNodeKey, WcagLevel, TotalPages, AverageScore, TotalIssues, ScannedAt FROM dwAccessibilityAudits ORDER BY ScannedAt DESC OFFSET 0 ROWS FETCH NEXT @0 ROWS ONLY", count));
+    }
+
+    public AccessibilityAuditDto? GetAuditById(int id)
+    {
+        using var scope = _scopeProvider.CreateScope(autoComplete: true);
+        return scope.Database.FirstOrDefault<AccessibilityAuditDto>(
+            new Sql("SELECT * FROM dwAccessibilityAudits WHERE Id = @0", id));
+    }
+
+    public void DeleteAudit(int id)
+    {
+        using var scope = _scopeProvider.CreateScope();
+        scope.Database.Delete<AccessibilityAuditDto>(id);
+        scope.Complete();
+    }
+}

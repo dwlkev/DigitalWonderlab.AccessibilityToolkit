@@ -1,3 +1,4 @@
+using DigitalWonderlab.AccessibilityToolkit.Checks.Utilities;
 using DigitalWonderlab.AccessibilityToolkit.Models;
 using HtmlAgilityPack;
 
@@ -35,6 +36,10 @@ public class AccessibilityAnalyzer : IAccessibilityAnalyzer
 
         // Filter individual issues by level (a check may emit issues above its MinimumLevel)
         allIssues = allIssues.Where(i => i.Level <= level).ToList();
+
+        // Populate WCAG guidance URLs
+        foreach (var issue in allIssues)
+            issue.WcagUrl = WcagReference.GetUnderstandingUrl(issue.WcagCriterion);
 
         var score = CalculateScore(allIssues);
 

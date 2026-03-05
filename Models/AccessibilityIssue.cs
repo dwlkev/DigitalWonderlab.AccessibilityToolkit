@@ -11,4 +11,5 @@ public class AccessibilityIssue
     public string Element { get; set; } = string.Empty;
     public string Selector { get; set; } = string.Empty;
     public string Recommendation { get; set; } = string.Empty;
+    public string WcagUrl { get; set; } = string.Empty;
 }

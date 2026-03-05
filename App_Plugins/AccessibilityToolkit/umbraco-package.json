@@ -21,6 +21,24 @@
           "match": "Umb.Workspace.Document"
         }
       ]
+    },
+    {
+      "type": "dashboard",
+      "alias": "accessibilityToolkitDashboard",
+      "name": "Accessibility Toolkit",
+      "js": "/App_Plugins/AccessibilityToolkit/accessibility-dashboard.js",
+      "elementName": "accessibility-toolkit-dashboard",
+      "weight": 10,
+      "meta": {
+        "label": "Accessibility Toolkit",
+        "pathname": "accessibility-toolkit"
+      },
+      "conditions": [
+        {
+          "alias": "Umb.Condition.SectionAlias",
+          "match": "Umb.Section.Content"
+        }
+      ]
     }
   ]
 }
