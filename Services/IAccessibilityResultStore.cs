@@ -13,4 +13,9 @@ public interface IAccessibilityResultStore
     IEnumerable<AccessibilityAuditDto> GetRecentAudits(int count);
     AccessibilityAuditDto? GetAuditById(int id);
     void DeleteAudit(int id);
+
+    string? GetSetting(string key);
+    void SaveSetting(string key, string value);
+
+    void ClearAllData();
 }

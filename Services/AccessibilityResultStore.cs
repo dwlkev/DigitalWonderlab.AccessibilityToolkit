@@ -24,7 +24,7 @@ public class AccessibilityResultStore : IAccessibilityResultStore
     {
         using var scope = _scopeProvider.CreateScope(autoComplete: true);
         return scope.Database.Fetch<AccessibilityResultDto>(
-            new Sql("SELECT TOP (@0) * FROM dwAccessibilityResults ORDER BY ScannedAt DESC", count));
+            new Sql("SELECT * FROM dwAccessibilityResults ORDER BY ScannedAt DESC OFFSET 0 ROWS FETCH NEXT @0 ROWS ONLY", count));
     }
 
     public void SaveResult(AccessibilityResultDto dto)
@@ -52,7 +52,7 @@ public class AccessibilityResultStore : IAccessibilityResultStore
     {
         using var scope = _scopeProvider.CreateScope(autoComplete: true);
         return scope.Database.Fetch<AccessibilityAuditDto>(
-            new Sql("SELECT Id, RootNodeKey, WcagLevel, TotalPages, AverageScore, TotalIssues, ScannedAt FROM dwAccessibilityAudits ORDER BY ScannedAt DESC OFFSET 0 ROWS FETCH NEXT @0 ROWS ONLY", count));
+            new Sql("SELECT Id, RootNodeKey, WcagLevel, TotalPages, AverageScore, TotalIssues, RootNodeName, ScannedAt FROM dwAccessibilityAudits ORDER BY ScannedAt DESC OFFSET 0 ROWS FETCH NEXT @0 ROWS ONLY", count));
     }
 
     public AccessibilityAuditDto? GetAuditById(int id)
@@ -66,6 +66,41 @@ public class AccessibilityResultStore : IAccessibilityResultStore
     {
         using var scope = _scopeProvider.CreateScope();
         scope.Database.Delete<AccessibilityAuditDto>(id);
+        scope.Complete();
+    }
+
+    public string? GetSetting(string key)
+    {
+        using var scope = _scopeProvider.CreateScope(autoComplete: true);
+        var result = scope.Database.FirstOrDefault<AccessibilitySettingsDto>(
+            new Sql("SELECT * FROM dwAccessibilitySettings WHERE SettingKey = @0", key));
+        return result?.SettingValue;
+    }
+
+    public void SaveSetting(string key, string value)
+    {
+        using var scope = _scopeProvider.CreateScope();
+        var existing = scope.Database.FirstOrDefault<AccessibilitySettingsDto>(
+            new Sql("SELECT * FROM dwAccessibilitySettings WHERE SettingKey = @0", key));
+
+        if (existing != null)
+        {
+            existing.SettingValue = value;
+            scope.Database.Update(existing);
+        }
+        else
+        {
+            scope.Database.Insert(new AccessibilitySettingsDto { SettingKey = key, SettingValue = value });
+        }
+
+        scope.Complete();
+    }
+
+    public void ClearAllData()
+    {
+        using var scope = _scopeProvider.CreateScope();
+        scope.Database.Execute(new Sql("DELETE FROM dwAccessibilityResults"));
+        scope.Database.Execute(new Sql("DELETE FROM dwAccessibilityAudits"));
         scope.Complete();
     }
 }

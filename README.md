@@ -6,7 +6,7 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 
 ### Page-Level Checks
 - **Accessibility tab** on every content page in the workspace
-- **40 WCAG checks** across Level A, AA, and AAA
+- **37 WCAG checks** across Level A, AA, and AAA
 - **Score gauge** (0-100) with colour-coded rating
 - **Categorised issues table** with impact badges (critical/serious/moderate/minor)
 - **Grouped issues** with expandable detail rows showing element snippets, selectors, and fix recommendations
@@ -70,9 +70,9 @@ No additional configuration required. The package registers itself automatically
 ### Re-Exporting Past Audits
 Past audits are stored with their full results. In the Audit History table on the dashboard, click **Export** on any row to regenerate the CSV.
 
-## WCAG Checks Included (40 checks)
+## WCAG Checks Included (37 checks)
 
-### Level A (25 checks)
+### Level A (24 checks)
 | Check | WCAG Criterion | Detects |
 |-------|---------------|---------|
 | Heading Hierarchy | 1.3.1 | Skipped heading levels, multiple/missing h1, empty headings |
@@ -111,7 +111,7 @@ Past audits are stored with their full results. In the Audit History table on th
 | Input Purpose | 1.3.5 | Common input fields missing autocomplete attributes |
 | Focus Not Restricted | 2.4.11 | Focus trapped within components |
 
-### Level AAA (8 checks)
+### Level AAA (6 checks)
 | Check | WCAG Criterion | Detects |
 |-------|---------------|---------|
 | Link Purpose (Full) | 2.4.9 | Links not understandable out of context |
@@ -145,19 +145,19 @@ The tool fetches the published HTML of each page server-side using `HttpClient`,
 
 ## API Endpoints
 
-All endpoints are under `/umbraco/api/accessibilitytoolkit/`:
+All endpoints are under `/umbraco/AccessibilityToolkit/Accessibility/` and require backoffice authentication:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `check/{nodeKey}?level=AA` | Run accessibility check on a single page |
-| GET | `history/{nodeKey}` | Get scan history for a specific page |
-| GET | `history/recent?count=20` | Get recent page-level scans |
-| DELETE | `history/{id}` | Delete a scan history entry |
-| POST | `audit/{nodeKey}?level=AA` | Run audit on a node and all descendants |
-| GET | `audit/recent?count=20` | Get recent audit summaries |
-| GET | `audit/{id}/export` | Get full audit results JSON for re-export |
-| DELETE | `audit/{id}` | Delete an audit record |
-| GET | `features` | Get enabled feature flags |
+| GET | `Check?nodeKey={guid}&level=AA` | Run accessibility check on a single page |
+| GET | `GetHistory?nodeKey={guid}` | Get scan history for a specific page |
+| GET | `GetRecentHistory?count=20` | Get recent page-level scans |
+| DELETE | `DeleteHistory?id={int}` | Delete a scan history entry |
+| POST | `RunAudit?nodeKey={guid}&level=AA` | Run audit on a node and all descendants |
+| GET | `GetRecentAudits?count=20` | Get recent audit summaries |
+| GET | `ExportAudit?id={int}` | Get full audit results JSON for re-export |
+| DELETE | `DeleteAudit?id={int}` | Delete an audit record |
+| GET | `GetFeatures` | Get enabled feature flags |
 
 ## Issues / Suggestions
 

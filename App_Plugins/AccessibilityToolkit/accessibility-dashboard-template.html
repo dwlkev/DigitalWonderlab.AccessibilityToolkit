@@ -9,131 +9,185 @@
             </p>
             <p class="a11y-dashboard-hint">
                 Run individual page checks from the <strong>Accessibility</strong> tab on any content node,
-                or use the audit tool below to scan a section of your site.
+                or use the Site Audit tab to scan a section of your site.
             </p>
         </div>
     </uui-box>
 
-    <uui-box class="a11y-dashboard-recent">
-        <div class="a11y-dashboard-section-header">
-            <h3>Recent Reports</h3>
-            <uui-button label="Refresh" id="a11y-dashboard-refresh" look="secondary"></uui-button>
-        </div>
+    <uui-tab-group>
+        <uui-tab label="recent-scans" active>Recent Scans</uui-tab>
+        <uui-tab label="site-audit">Site Audit</uui-tab>
+        <uui-tab label="settings">Settings</uui-tab>
+    </uui-tab-group>
 
-        <div id="a11y-dashboard-loading" class="a11y-loading" style="display:none;">
-            <span class="a11y-spinner"></span> Loading recent reports...
-        </div>
+    <div id="a11y-tab-recent-scans" class="a11y-tab-content a11y-tab-visible">
+        <uui-box class="a11y-dashboard-recent" headline="Recent Reports">
+            <div slot="header-actions">
+                <uui-button label="Refresh" id="a11y-dashboard-refresh" look="secondary"></uui-button>
+            </div>
 
-        <div id="a11y-dashboard-empty" class="a11y-dashboard-empty" style="display:none;">
-            No accessibility reports yet. Run your first check from any content page's Accessibility tab.
-        </div>
+            <div id="a11y-dashboard-loading" class="a11y-loading" style="display:none;">
+                <span class="a11y-spinner"></span> Loading recent reports...
+            </div>
 
-        <div class="a11y-table-wrapper">
-            <table class="a11y-table" id="a11y-dashboard-table" style="display:none;">
-                <thead>
-                    <tr>
-                        <th>Page URL</th>
-                        <th>Score</th>
-                        <th>Level</th>
-                        <th>Issues</th>
-                        <th>Date</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="a11y-dashboard-tbody"></tbody>
-            </table>
-        </div>
+            <div id="a11y-dashboard-empty" class="a11y-dashboard-empty" style="display:none;">
+                No accessibility reports yet. Run your first check from any content page's Accessibility tab.
+            </div>
 
-        <div id="a11y-dashboard-pagination" class="a11y-pagination" style="display:none;">
-            <uui-button label="Previous" id="a11y-page-prev" look="secondary" disabled></uui-button>
-            <span id="a11y-page-info" class="a11y-page-info"></span>
-            <uui-button label="Next" id="a11y-page-next" look="secondary" disabled></uui-button>
-        </div>
-    </uui-box>
+            <div class="a11y-table-wrapper">
+                <table class="a11y-table" id="a11y-dashboard-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Page URL</th>
+                            <th>Score</th>
+                            <th>Level</th>
+                            <th>Issues</th>
+                            <th>Date</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="a11y-dashboard-tbody"></tbody>
+                </table>
+            </div>
 
-    <uui-box class="a11y-dashboard-audit-history">
-        <div class="a11y-dashboard-section-header">
-            <h3>Audit History</h3>
-        </div>
+            <div id="a11y-dashboard-pagination" class="a11y-pagination" style="display:none;">
+                <uui-button label="Previous" id="a11y-page-prev" look="secondary" disabled></uui-button>
+                <span id="a11y-page-info" class="a11y-page-info"></span>
+                <uui-button label="Next" id="a11y-page-next" look="secondary" disabled></uui-button>
+            </div>
+        </uui-box>
+    </div>
 
-        <div id="a11y-audit-history-loading" class="a11y-loading" style="display:none;">
-            <span class="a11y-spinner"></span> Loading audit history...
-        </div>
+    <div id="a11y-tab-site-audit" class="a11y-tab-content" style="display:none;">
+        <uui-box class="a11y-dashboard-audit" headline="Run Audit">
+            <p class="a11y-dashboard-audit-desc">
+                Audit a content node and all its children in one go. Pick a content node below to start.
+            </p>
+            <div class="a11y-dashboard-audit-controls">
+                <div class="a11y-control-group">
+                    <label>Content Node</label>
+                    <div class="a11y-node-picker">
+                        <uui-button label="Pick Content Node" id="a11y-audit-pick-btn" look="outline"></uui-button>
+                        <span id="a11y-audit-node-display" class="a11y-node-display">No node selected</span>
+                        <input type="text" id="a11y-audit-nodekey" placeholder="or paste GUID..." class="a11y-dashboard-input a11y-node-fallback" />
+                    </div>
+                </div>
+                <div class="a11y-control-group">
+                    <label for="a11y-audit-level">WCAG Level</label>
+                    <select id="a11y-audit-level">
+                        <option value="A">Level A</option>
+                        <option value="AA" selected>Level AA</option>
+                        <option value="AAA">Level AAA</option>
+                    </select>
+                </div>
+                <uui-button label="Run Audit" id="a11y-audit-btn" look="primary" color="positive"></uui-button>
+            </div>
 
-        <div id="a11y-audit-history-empty" class="a11y-dashboard-empty" style="display:none;">
-            No audits yet. Run a site audit below to see results here.
-        </div>
+            <div id="a11y-audit-loading" class="a11y-loading" style="display:none;">
+                <span class="a11y-spinner"></span> <span class="a11y-loading-text">Discovering pages...</span>
+            </div>
 
-        <div class="a11y-table-wrapper">
-            <table class="a11y-table" id="a11y-audit-history-table" style="display:none;">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Root Node</th>
-                        <th>Level</th>
-                        <th>Pages</th>
-                        <th>Avg Score</th>
-                        <th>Issues</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="a11y-audit-history-tbody"></tbody>
-            </table>
-        </div>
-    </uui-box>
+            <div id="a11y-audit-progress" style="display:none;">
+                <div>
+                    <span id="a11y-audit-progress-count" class="a11y-progress-count"></span>
+                </div>
+                <div class="a11y-audit-progress-bar-wrapper">
+                    <div class="a11y-progress-bar">
+                        <div id="a11y-audit-progress-fill" class="a11y-progress-fill"></div>
+                    </div>
+                    <span id="a11y-audit-progress-text" class="a11y-progress-text"></span>
+                </div>
+                <div id="a11y-audit-progress-log" class="a11y-progress-log"></div>
+            </div>
 
-    <uui-box class="a11y-dashboard-audit">
-        <div class="a11y-dashboard-section-header">
-            <h3>Site Audit</h3>
-        </div>
-        <p class="a11y-dashboard-audit-desc">
-            Audit a content node and all its children in one go. Pick a content node below to start.
-        </p>
-        <div class="a11y-dashboard-audit-controls">
-            <div class="a11y-control-group">
-                <label>Content Node</label>
-                <div class="a11y-node-picker">
-                    <uui-button label="Pick Content Node" id="a11y-audit-pick-btn" look="outline"></uui-button>
-                    <span id="a11y-audit-node-display" class="a11y-node-display">No node selected</span>
-                    <input type="text" id="a11y-audit-nodekey" placeholder="or paste GUID..." class="a11y-dashboard-input a11y-node-fallback" />
+            <div id="a11y-audit-results" style="display:none;">
+                <div class="a11y-dashboard-audit-summary" id="a11y-audit-summary"></div>
+                <div class="a11y-audit-pages-toggle">
+                    <button id="a11y-audit-toggle-pages" class="a11y-collapsible-btn">Show all pages &#9660;</button>
+                </div>
+                <div id="a11y-audit-pages-container" class="a11y-collapsible-content" style="display:none;">
+                    <div class="a11y-table-wrapper">
+                        <table class="a11y-table" id="a11y-audit-table">
+                            <thead>
+                                <tr>
+                                    <th>Page URL</th>
+                                    <th>Score</th>
+                                    <th>Issues</th>
+                                </tr>
+                            </thead>
+                            <tbody id="a11y-audit-tbody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            <div class="a11y-control-group">
-                <label for="a11y-audit-level">WCAG Level</label>
-                <select id="a11y-audit-level">
-                    <option value="A">Level A</option>
-                    <option value="AA" selected>Level AA</option>
-                    <option value="AAA">Level AAA</option>
-                </select>
-            </div>
-            <uui-button label="Run Audit" id="a11y-audit-btn" look="primary" color="positive"></uui-button>
-        </div>
+        </uui-box>
 
-        <div id="a11y-audit-loading" class="a11y-loading" style="display:none;">
-            <span class="a11y-spinner"></span> Auditing pages...
-        </div>
-
-        <div id="a11y-audit-results" style="display:none;">
-            <div class="a11y-dashboard-audit-summary" id="a11y-audit-summary"></div>
-            <div class="a11y-audit-pages-toggle">
-                <button id="a11y-audit-toggle-pages" class="a11y-collapsible-btn">Show all pages &#9660;</button>
+        <uui-box class="a11y-dashboard-audit-history" headline="Audit History">
+            <div id="a11y-audit-history-loading" class="a11y-loading" style="display:none;">
+                <span class="a11y-spinner"></span> Loading audit history...
             </div>
-            <div id="a11y-audit-pages-container" class="a11y-collapsible-content" style="display:none;">
-                <div class="a11y-table-wrapper">
-                    <table class="a11y-table" id="a11y-audit-table">
-                        <thead>
-                            <tr>
-                                <th>Page URL</th>
-                                <th>Score</th>
-                                <th>Issues</th>
-                            </tr>
-                        </thead>
-                        <tbody id="a11y-audit-tbody"></tbody>
-                    </table>
+
+            <div id="a11y-audit-history-empty" class="a11y-dashboard-empty" style="display:none;">
+                No audits yet. Run a site audit above to see results here.
+            </div>
+
+            <div id="a11y-audit-sparkline-container" class="a11y-sparkline-container" style="display:none;">
+                <div id="a11y-audit-sparkline" class="a11y-sparkline-chart"></div>
+                <div id="a11y-audit-sparkline-labels" class="a11y-sparkline-labels"></div>
+            </div>
+
+            <div class="a11y-table-wrapper">
+                <table class="a11y-table" id="a11y-audit-history-table" style="display:none;">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Root Node</th>
+                            <th>Level</th>
+                            <th>Pages</th>
+                            <th>Avg Score</th>
+                            <th>Issues</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="a11y-audit-history-tbody"></tbody>
+                </table>
+            </div>
+        </uui-box>
+    </div>
+
+    <div id="a11y-tab-settings" class="a11y-tab-content" style="display:none;">
+        <uui-box headline="Licence">
+            <div id="a11y-licence-status"></div>
+        </uui-box>
+
+        <uui-box headline="Audit Exclusions" style="margin-top:15px;">
+            <div id="a11y-settings-loading" class="a11y-loading" style="display:none;">
+                <span class="a11y-spinner"></span> Loading settings...
+            </div>
+            <div id="a11y-settings-body" style="display:none;">
+                <div class="a11y-settings-section">
+                    <h4>Excluded Document Types</h4>
+                    <p class="a11y-settings-desc">Pages with these document types will be skipped during audits.</p>
+                    <div id="a11y-doctype-list" class="a11y-doctype-list"></div>
+                </div>
+                <div class="a11y-settings-section">
+                    <h4>Excluded Pages</h4>
+                    <p class="a11y-settings-desc">These specific pages will be skipped during audits.</p>
+                    <div id="a11y-excluded-pages-list" class="a11y-excluded-pages-list"></div>
+                    <uui-button label="Add Page" id="a11y-add-excluded-page-btn" look="outline" style="margin-top:8px;"></uui-button>
+                </div>
+                <div style="margin-top:12px;">
+                    <uui-button label="Save Settings" id="a11y-save-settings-btn" look="primary" color="positive"></uui-button>
+                    <span id="a11y-settings-saved" class="a11y-settings-saved" style="display:none;">Saved!</span>
                 </div>
             </div>
-        </div>
-    </uui-box>
+        </uui-box>
+
+        <uui-box headline="Data Management" style="margin-top:15px;">
+            <p>Remove all scan results and audit history. This cannot be undone.</p>
+            <uui-button label="Clear All Data" id="a11y-clear-data-btn" look="primary" color="danger" style="margin-top:8px;"></uui-button>
+        </uui-box>
+    </div>
 
     <div class="a11y-copy">Created with care by <a href="https://digitalwonderlab.com" target="_blank">Digital Wonderlab</a></div>
 </div>

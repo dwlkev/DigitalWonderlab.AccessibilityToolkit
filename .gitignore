@@ -367,3 +367,4 @@ FodyWeavers.xsd
 /.claude/settings.local.json
 /publish-nuget.sh
 /TODO.md
+/_testingscreenshots

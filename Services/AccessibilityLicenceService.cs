@@ -1,18 +1,27 @@
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Hosting;
 
 namespace DigitalWonderlab.AccessibilityToolkit.Services;
 
 public class AccessibilityLicenceService : IAccessibilityLicenceService
 {
-    private readonly IConfiguration _configuration;
+    private readonly IWebHostEnvironment _webHostEnvironment;
+    private bool? _cachedResult;
 
-    public AccessibilityLicenceService(IConfiguration configuration)
+    public AccessibilityLicenceService(IWebHostEnvironment webHostEnvironment)
     {
-        _configuration = configuration;
+        _webHostEnvironment = webHostEnvironment;
     }
 
     public bool IsVisualChecksEnabled()
     {
-        return _configuration.GetValue<bool>("AccessibilityToolkit:VisualChecks:Enabled");
+        if (_cachedResult.HasValue)
+            return _cachedResult.Value;
+
+        var licencePath = Path.Combine(
+            _webHostEnvironment.ContentRootPath,
+            "umbraco", "Licenses", "DigitalWonderlab.AccessibilityToolkit.lic");
+
+        _cachedResult = File.Exists(licencePath);
+        return _cachedResult.Value;
     }
 }

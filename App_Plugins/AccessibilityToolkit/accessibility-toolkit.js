@@ -11,6 +11,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     #level = "AA";
     #pageHistory = [];
     #visualChecksEnabled = false;
+    #visualIframe = null;
+    #visualIframeUrl = null;
 
     constructor() {
         super();
@@ -48,10 +50,11 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
 
     async #loadFeatures() {
         try {
-            const response = await fetch("/umbraco/api/accessibilitytoolkit/features");
+            const response = await fetch("/umbraco/AccessibilityToolkit/Accessibility/GetFeatures");
             if (!response.ok) return;
             const data = await response.json();
             this.#visualChecksEnabled = data.visualChecks === true;
+            if (this.#visualChecksEnabled) this.#renderProBadge();
             this.#renderVisualChecksSection();
         } catch {
             // Silently ignore — defaults to locked
@@ -73,12 +76,27 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                     <div class="a11y-dashboard-section-header">
                         <h3>Visual Checks</h3>
                     </div>
-                    <p>Run browser-based accessibility checks that analyse computed styles, color contrast, focus indicators, and more.</p>
+                    <p>Run browser-based accessibility checks that analyse computed styles and color contrast in the published page.</p>
                     <div style="margin-top: 12px;">
-                        <uui-button label="Run Visual Scan" look="primary" color="positive" disabled>Coming Soon</uui-button>
+                        <uui-button label="Run Visual Scan" id="a11y-visual-scan-btn" look="primary" color="positive"></uui-button>
+                    </div>
+                    <div id="a11y-visual-loading" class="a11y-loading" style="display:none;">
+                        <span class="a11y-spinner"></span> Running visual checks...
+                    </div>
+                    <div id="a11y-visual-error" class="a11y-error" style="display:none;"></div>
+                    <div id="a11y-visual-results"></div>
+                    <div id="a11y-visual-preview-panel" class="a11y-visual-preview-panel" style="display:none;">
+                        <div class="a11y-visual-preview-header">
+                            <h4>Page Preview</h4>
+                            <button id="a11y-close-preview-btn" class="a11y-show-on-page-btn">Close Preview</button>
+                        </div>
                     </div>
                 </div>
             `;
+            const scanBtn = content.querySelector("#a11y-visual-scan-btn");
+            scanBtn?.addEventListener("click", () => this.#runVisualCheck());
+            const closeBtn = content.querySelector("#a11y-close-preview-btn");
+            closeBtn?.addEventListener("click", () => this.#closePreviewPanel());
         } else {
             content.innerHTML = `
                 <div class="a11y-premium-locked">
@@ -169,6 +187,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                             <select id="a11y-filter-category">
                                 <option value="">All Categories</option>
                             </select>
+                            <uui-button label="Print Report" id="a11y-report-btn" look="secondary"></uui-button>
                             <uui-button label="Export CSV" id="a11y-export-btn" look="secondary"></uui-button>
                         </div>
                     </div>
@@ -197,6 +216,10 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             <uui-box id="a11y-page-history-box" class="a11y-page-history-box" style="display:none;">
                 <div class="a11y-dashboard-section-header">
                     <h3>Scan History</h3>
+                </div>
+                <div id="a11y-page-sparkline-container" class="a11y-sparkline-container" style="display:none;">
+                    <div id="a11y-page-sparkline" class="a11y-sparkline-chart"></div>
+                    <div id="a11y-page-sparkline-labels" class="a11y-sparkline-labels"></div>
                 </div>
                 <div id="a11y-page-history-empty" class="a11y-dashboard-empty" style="display:none;">
                     No scan history for this page yet.
@@ -235,9 +258,12 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         const exportBtn = this.shadowRoot.getElementById("a11y-export-btn");
         const filterCategory = this.shadowRoot.getElementById("a11y-filter-category");
 
+        const reportBtn = this.shadowRoot.getElementById("a11y-report-btn");
+
         runBtn?.addEventListener("click", () => this.#runCheck());
         levelSelect?.addEventListener("change", (e) => { this.#level = e.target.value; });
         exportBtn?.addEventListener("click", () => this.#exportCsv());
+        reportBtn?.addEventListener("click", () => this.#openPageReport());
         filterCategory?.addEventListener("change", () => this.#renderIssuesTable());
 
         this.shadowRoot.querySelectorAll(".a11y-th-sortable").forEach((th) => {
@@ -259,7 +285,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
 
         try {
             const response = await fetch(
-                `/umbraco/api/accessibilitytoolkit/check/${this.#nodeKey}?level=${this.#level}`
+                `/umbraco/AccessibilityToolkit/Accessibility/Check?nodeKey=${this.#nodeKey}&level=${this.#level}`
             );
 
             if (!response.ok) {
@@ -296,7 +322,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         if (!this.#nodeKey) return;
 
         try {
-            const response = await fetch(`/umbraco/api/accessibilitytoolkit/history/${this.#nodeKey}`);
+            const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/GetHistory?nodeKey=${this.#nodeKey}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             this.#pageHistory = await response.json();
             this.#renderPageHistory();
@@ -317,11 +343,16 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         if (this.#pageHistory.length === 0) {
             table.style.display = "none";
             empty.style.display = "block";
+            const sparkContainer = this.shadowRoot.getElementById("a11y-page-sparkline-container");
+            if (sparkContainer) sparkContainer.style.display = "none";
             return;
         }
 
         table.style.display = "";
         empty.style.display = "none";
+
+        // Render sparkline
+        this.#renderPageSparkline();
 
         for (const entry of this.#pageHistory) {
             const tr = document.createElement("tr");
@@ -348,7 +379,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
 
     async #deleteHistoryEntry(id) {
         try {
-            const response = await fetch(`/umbraco/api/accessibilitytoolkit/history/${id}`, { method: "DELETE" });
+            const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/DeleteHistory?id=${id}`, { method: "DELETE" });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             this.#pageHistory = this.#pageHistory.filter(r => r.id !== id);
             this.#renderPageHistory();
@@ -573,6 +604,794 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         link.setAttribute("download", `accessibility-report-${new Date().toISOString().slice(0, 10)}.csv`);
         link.click();
         URL.revokeObjectURL(url);
+    }
+
+    // --- PRO badge ---
+
+    #renderProBadge() {
+        const h2 = this.shadowRoot.querySelector(".a11y-header-text h2");
+        if (!h2 || h2.querySelector(".a11y-pro-indicator")) return;
+        const badge = document.createElement("span");
+        badge.className = "a11y-pro-indicator";
+        badge.textContent = "PRO";
+        h2.appendChild(badge);
+    }
+
+    // --- Visual checks ---
+
+    async #resolvePageUrl() {
+        // 1. Current check result
+        if (this.#result?.url) return this.#result.url;
+        // 2. Most recent scan history
+        if (this.#pageHistory?.length > 0 && this.#pageHistory[0].url) return this.#pageHistory[0].url;
+        // 3. Ask the server to resolve it
+        if (!this.#nodeKey) return null;
+        const resp = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/GetPageUrl?nodeKey=${this.#nodeKey}`);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        return data.url || null;
+    }
+
+    async #runVisualCheck() {
+        const btn = this.shadowRoot.getElementById("a11y-visual-scan-btn");
+        const loading = this.shadowRoot.getElementById("a11y-visual-loading");
+        const errorEl = this.shadowRoot.getElementById("a11y-visual-error");
+        const resultsEl = this.shadowRoot.getElementById("a11y-visual-results");
+
+        btn.disabled = true;
+        loading.style.display = "flex";
+        errorEl.style.display = "none";
+        resultsEl.innerHTML = "";
+
+        try {
+            const pageUrl = await this.#resolvePageUrl();
+            if (!pageUrl) {
+                throw new Error("Could not resolve a published URL for this page. Ensure the page is published and has a valid hostname configured.");
+            }
+
+            const issues = await this.#runContrastCheckInIframe(pageUrl);
+            this.#renderVisualResults(issues);
+
+            const summary = issues.length === 0
+                ? "No color contrast issues found."
+                : `Found ${issues.length} color contrast issue(s).`;
+            this.#notificationContext?.peek(issues.length === 0 ? "positive" : "warning", {
+                data: { headline: "Visual check complete", message: summary },
+            });
+        } catch (error) {
+            console.error("Visual check failed", error);
+            errorEl.textContent = error.message;
+            errorEl.style.display = "block";
+            this.#notificationContext?.peek("danger", {
+                data: { headline: "Visual check failed", message: error.message },
+            });
+        } finally {
+            btn.disabled = false;
+            loading.style.display = "none";
+        }
+    }
+
+    #runContrastCheckInIframe(url) {
+        return new Promise((resolve, reject) => {
+            // Clean up previous iframe
+            this.#cleanupVisualIframe();
+
+            const iframe = document.createElement("iframe");
+            iframe.style.cssText = "position:fixed;left:-10000px;top:-10000px;width:1280px;height:900px;border:none;opacity:0;pointer-events:none;";
+            iframe.setAttribute("sandbox", "allow-same-origin");
+
+            const timeout = setTimeout(() => {
+                this.#cleanupVisualIframe();
+                reject(new Error("Visual check timed out after 15 seconds. The page may be too slow to load."));
+            }, 15000);
+
+            iframe.addEventListener("load", () => {
+                clearTimeout(timeout);
+                try {
+                    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                    if (!doc || !doc.body) {
+                        throw new Error("Could not access page content. The page may block framing (X-Frame-Options/CSP).");
+                    }
+                    const issues = this.#analyzeContrastInDocument(doc);
+                    // Keep iframe alive for "Show on Page"
+                    this.#visualIframe = iframe;
+                    this.#visualIframeUrl = url;
+                    resolve(issues);
+                } catch (err) {
+                    this.#cleanupVisualIframe();
+                    if (err.name === "SecurityError") {
+                        reject(new Error("Cannot access page — it is on a different origin or blocks framing. Ensure the published site is on the same origin as the backoffice."));
+                    } else {
+                        reject(err);
+                    }
+                }
+            });
+
+            iframe.addEventListener("error", () => {
+                clearTimeout(timeout);
+                this.#cleanupVisualIframe();
+                reject(new Error("Failed to load the page in an iframe. Check the page URL is accessible."));
+            });
+
+            iframe.src = url;
+            document.body.appendChild(iframe);
+        });
+    }
+
+    #analyzeContrastInDocument(doc) {
+        const issues = [];
+        const win = doc.defaultView || window;
+        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+
+        while (walker.nextNode()) {
+            const el = walker.currentNode;
+            if (!this.#hasDirectText(el)) continue;
+
+            const style = win.getComputedStyle(el);
+            if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
+
+            const fgColor = this.#parseRgba(style.color);
+            if (!fgColor) continue;
+
+            const bgColor = this.#getEffectiveBackground(el, win);
+
+            const ratio = this.#contrastRatio(fgColor, bgColor);
+            const fontSize = parseFloat(style.fontSize);
+            const fontWeight = parseInt(style.fontWeight, 10) || 400;
+            const isLargeText = fontSize >= 24 || (fontSize >= 18.66 && fontWeight >= 700);
+
+            const requiredRatio = isLargeText ? 3.0 : 4.5;
+            const aaaPassed = isLargeText ? ratio >= 4.5 : ratio >= 7.0;
+
+            if (ratio < requiredRatio) {
+                const impact = ratio < 2.0 ? "critical" : ratio < 3.0 ? "serious" : "moderate";
+                issues.push({
+                    ruleId: "visual-color-contrast",
+                    description: `Text has insufficient contrast ratio ${ratio.toFixed(2)}:1 (requires ${requiredRatio}:1 for ${isLargeText ? "large" : "normal"} text)`,
+                    category: "Color",
+                    level: "AA",
+                    wcagCriterion: "1.4.3",
+                    impact,
+                    element: this.#truncateHtml(el),
+                    selector: this.#buildCssSelector(el),
+                    recommendation: `Increase contrast ratio to at least ${requiredRatio}:1. Current foreground: ${this.#rgbToHex(fgColor)}, background: ${this.#rgbToHex(bgColor)}.`,
+                    wcagUrl: "https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html",
+                    fgColor: { r: fgColor.r, g: fgColor.g, b: fgColor.b },
+                    bgColor: { r: bgColor.r, g: bgColor.g, b: bgColor.b },
+                    contrastRatio: ratio,
+                });
+            } else if (!aaaPassed) {
+                // AAA failure is minor info only
+                issues.push({
+                    ruleId: "visual-color-contrast-enhanced",
+                    description: `Text meets AA but fails AAA enhanced contrast — ratio ${ratio.toFixed(2)}:1 (AAA requires ${isLargeText ? "4.5" : "7.0"}:1)`,
+                    category: "Color",
+                    level: "AAA",
+                    wcagCriterion: "1.4.6",
+                    impact: "minor",
+                    element: this.#truncateHtml(el),
+                    selector: this.#buildCssSelector(el),
+                    recommendation: `For AAA compliance, increase contrast ratio to at least ${isLargeText ? "4.5" : "7.0"}:1.`,
+                    wcagUrl: "https://www.w3.org/WAI/WCAG21/Understanding/contrast-enhanced.html",
+                    fgColor: { r: fgColor.r, g: fgColor.g, b: fgColor.b },
+                    bgColor: { r: bgColor.r, g: bgColor.g, b: bgColor.b },
+                    contrastRatio: ratio,
+                });
+            }
+        }
+        return issues;
+    }
+
+    #hasDirectText(el) {
+        for (const child of el.childNodes) {
+            if (child.nodeType === Node.TEXT_NODE && child.textContent.trim().length > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    #parseRgba(str) {
+        if (!str) return null;
+        const match = str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/);
+        if (!match) return null;
+        return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]), a: match[4] !== undefined ? parseFloat(match[4]) : 1 };
+    }
+
+    #getEffectiveBackground(el, win) {
+        const layers = [];
+        let current = el;
+        while (current && current !== el.ownerDocument.documentElement) {
+            const style = win.getComputedStyle(current);
+            const bg = this.#parseRgba(style.backgroundColor);
+            if (bg && bg.a > 0) {
+                layers.push(bg);
+            }
+            current = current.parentElement;
+        }
+
+        // Start with white and composite from bottom (last) to top (first)
+        let result = { r: 255, g: 255, b: 255, a: 1 };
+        for (let i = layers.length - 1; i >= 0; i--) {
+            result = this.#alphaComposite(layers[i], result);
+        }
+        return result;
+    }
+
+    #alphaComposite(fg, bg) {
+        const a = fg.a + bg.a * (1 - fg.a);
+        if (a === 0) return { r: 0, g: 0, b: 0, a: 0 };
+        return {
+            r: Math.round((fg.r * fg.a + bg.r * bg.a * (1 - fg.a)) / a),
+            g: Math.round((fg.g * fg.a + bg.g * bg.a * (1 - fg.a)) / a),
+            b: Math.round((fg.b * fg.a + bg.b * bg.a * (1 - fg.a)) / a),
+            a,
+        };
+    }
+
+    #srgbToLinear(c) {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    }
+
+    #relativeLuminance(color) {
+        return 0.2126 * this.#srgbToLinear(color.r)
+             + 0.7152 * this.#srgbToLinear(color.g)
+             + 0.0722 * this.#srgbToLinear(color.b);
+    }
+
+    #contrastRatio(fg, bg) {
+        const l1 = this.#relativeLuminance(fg);
+        const l2 = this.#relativeLuminance(bg);
+        const lighter = Math.max(l1, l2);
+        const darker = Math.min(l1, l2);
+        return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    #buildCssSelector(el) {
+        if (el.id) return `#${el.id}`;
+        const parts = [];
+        let current = el;
+        while (current && current.nodeType === Node.ELEMENT_NODE) {
+            let selector = current.tagName.toLowerCase();
+            if (current.id) {
+                parts.unshift(`#${current.id}`);
+                break;
+            }
+            if (current.className && typeof current.className === "string") {
+                const classes = current.className.trim().split(/\s+/).slice(0, 2).join(".");
+                if (classes) selector += `.${classes}`;
+            }
+            parts.unshift(selector);
+            current = current.parentElement;
+        }
+        return parts.join(" > ");
+    }
+
+    #truncateHtml(el) {
+        const html = el.outerHTML || "";
+        return html.length > 200 ? html.substring(0, 200) + "..." : html;
+    }
+
+    #rgbToHex(color) {
+        const hex = (v) => v.toString(16).padStart(2, "0");
+        return `#${hex(color.r)}${hex(color.g)}${hex(color.b)}`;
+    }
+
+    #renderVisualResults(issues) {
+        const container = this.shadowRoot.getElementById("a11y-visual-results");
+        if (!container) return;
+
+        if (issues.length === 0) {
+            container.innerHTML = `<div class="a11y-no-issues" style="margin-top:12px;">No color contrast issues found. Great work!</div>`;
+            return;
+        }
+
+        // Separate AA failures from AAA-only
+        const aaIssues = issues.filter(i => i.level === "AA");
+        const aaaIssues = issues.filter(i => i.level === "AAA");
+
+        let html = `<div style="margin-top:15px;">`;
+
+        // Impact summary
+        const critical = issues.filter(i => i.impact === "critical").length;
+        const serious = issues.filter(i => i.impact === "serious").length;
+        const moderate = issues.filter(i => i.impact === "moderate").length;
+        const minor = issues.filter(i => i.impact === "minor").length;
+
+        html += `<div class="a11y-impact-summary" style="margin-bottom:12px;">`;
+        if (critical) html += `<div class="a11y-impact-badge a11y-impact-critical"><span>${critical}</span> Critical</div>`;
+        if (serious) html += `<div class="a11y-impact-badge a11y-impact-serious"><span>${serious}</span> Serious</div>`;
+        if (moderate) html += `<div class="a11y-impact-badge a11y-impact-moderate"><span>${moderate}</span> Moderate</div>`;
+        if (minor) html += `<div class="a11y-impact-badge a11y-impact-minor"><span>${minor}</span> Minor</div>`;
+        html += `</div>`;
+
+        if (aaIssues.length > 0) {
+            html += `<h3 style="margin:12px 0 8px;">AA Failures (${aaIssues.length})</h3>`;
+            html += this.#buildVisualIssuesTable(aaIssues);
+        }
+
+        if (aaaIssues.length > 0) {
+            html += `<h3 style="margin:16px 0 8px;">AAA Enhanced (${aaaIssues.length})</h3>`;
+            html += this.#buildVisualIssuesTable(aaaIssues);
+        }
+
+        html += `</div>`;
+        container.innerHTML = html;
+
+        // Bind expand buttons
+        container.querySelectorAll(".a11y-expand-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const detailRow = btn.closest("tr").nextElementSibling;
+                if (detailRow) {
+                    const isVisible = detailRow.style.display !== "none";
+                    detailRow.style.display = isVisible ? "none" : "";
+                    btn.innerHTML = isVisible ? "&#9660;" : "&#9650;";
+                }
+            });
+        });
+
+        // Bind "Show" buttons
+        container.querySelectorAll(".a11y-show-on-page-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const selector = btn.dataset.selector;
+                if (selector) this.#showElementOnPage(selector);
+            });
+        });
+    }
+
+    #buildVisualIssuesTable(issues) {
+        let html = `<div class="a11y-table-wrapper"><table class="a11y-table"><thead><tr>
+            <th>Impact</th>
+            <th>Preview</th>
+            <th>Ratio</th>
+            <th>Colors</th>
+            <th>Description</th>
+            <th></th>
+            <th></th>
+        </tr></thead><tbody>`;
+
+        for (const issue of issues) {
+            const fgHex = this.#rgbToHex(issue.fgColor);
+            const bgHex = this.#rgbToHex(issue.bgColor);
+            const swatchUrl = this.#generateContrastSwatch(issue.fgColor, issue.bgColor, issue.contrastRatio);
+
+            html += `<tr class="a11y-issue-row">
+                <td><span class="a11y-badge a11y-badge-${this.#escapeHtml(issue.impact)}">${this.#escapeHtml(issue.impact)}</span></td>
+                <td><img src="${swatchUrl}" class="a11y-contrast-swatch" alt="Contrast preview" /></td>
+                <td><strong>${issue.contrastRatio.toFixed(2)}:1</strong></td>
+                <td>
+                    <span class="a11y-color-labels">
+                        <span class="a11y-color-swatch" style="background:${fgHex};" title="Foreground: ${fgHex}"></span>
+                        ${fgHex}
+                        &rarr;
+                        <span class="a11y-color-swatch" style="background:${bgHex};" title="Background: ${bgHex}"></span>
+                        ${bgHex}
+                    </span>
+                </td>
+                <td class="a11y-desc-cell">${this.#escapeHtml(issue.description)}</td>
+                <td>${issue.selector ? `<button class="a11y-show-on-page-btn" data-selector="${this.#escapeHtml(issue.selector)}" title="Show element on page">Show</button>` : ""}</td>
+                <td><button class="a11y-expand-btn" title="Show details">&#9660;</button></td>
+            </tr>`;
+
+            html += `<tr class="a11y-detail-row" style="display:none;">
+                <td colspan="7">
+                    <div class="a11y-detail">
+                        ${issue.element ? `<div class="a11y-detail-field"><strong>Element:</strong> <code>${this.#escapeHtml(issue.element)}</code></div>` : ""}
+                        ${issue.selector ? `<div class="a11y-detail-field"><strong>Selector:</strong> <code>${this.#escapeHtml(issue.selector)}</code></div>` : ""}
+                        <div class="a11y-detail-field"><strong>Recommendation:</strong> ${this.#escapeHtml(issue.recommendation)}</div>
+                        <div class="a11y-detail-field"><strong>WCAG:</strong> <a href="${this.#escapeHtml(issue.wcagUrl)}" target="_blank" rel="noopener" class="a11y-wcag-link">${this.#escapeHtml(issue.wcagCriterion)}</a></div>
+                    </div>
+                </td>
+            </tr>`;
+        }
+
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    disconnectedCallback() {
+        this.#cleanupVisualIframe();
+        if (super.disconnectedCallback) super.disconnectedCallback();
+    }
+
+    #cleanupVisualIframe() {
+        if (this.#visualIframe && this.#visualIframe.parentNode) {
+            this.#visualIframe.parentNode.removeChild(this.#visualIframe);
+        }
+        this.#visualIframe = null;
+        this.#visualIframeUrl = null;
+    }
+
+    #generateContrastSwatch(fgColor, bgColor, ratio) {
+        const canvas = document.createElement("canvas");
+        canvas.width = 120;
+        canvas.height = 40;
+        const ctx = canvas.getContext("2d");
+        const bgHex = this.#rgbToHex(bgColor);
+        const fgHex = this.#rgbToHex(fgColor);
+        ctx.fillStyle = bgHex;
+        ctx.fillRect(0, 0, 120, 40);
+        ctx.fillStyle = fgHex;
+        ctx.font = "bold 16px sans-serif";
+        ctx.fillText("Aa Bb Cc", 6, 24);
+        ctx.font = "10px sans-serif";
+        ctx.fillStyle = fgHex;
+        ctx.fillText(`${ratio.toFixed(1)}:1`, 6, 36);
+        return canvas.toDataURL("image/png");
+    }
+
+    #showElementOnPage(selector) {
+        const panel = this.shadowRoot.getElementById("a11y-visual-preview-panel");
+        if (!panel || !this.#visualIframeUrl) return;
+
+        panel.style.display = "block";
+
+        // Remove any existing preview iframe
+        const existing = panel.querySelector("iframe");
+        if (existing) existing.remove();
+
+        // Create a fresh preview iframe (separate from the scan iframe)
+        const previewIframe = document.createElement("iframe");
+        previewIframe.style.cssText = "width:100%;height:500px;border:1px solid #e5e7eb;border-radius:6px;";
+        previewIframe.src = this.#visualIframeUrl;
+
+        previewIframe.addEventListener("load", () => {
+            try {
+                const doc = previewIframe.contentDocument || previewIframe.contentWindow?.document;
+                if (!doc) return;
+
+                // Inject highlight style
+                const style = doc.createElement("style");
+                style.id = "a11y-highlight-style";
+                style.textContent = `
+                    @keyframes a11y-pulse { 0%,100% { box-shadow: 0 0 0 3px rgba(239,68,68,0.7); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0.3); } }
+                    .a11y-highlight-overlay { outline: 3px solid #ef4444 !important; outline-offset: 2px; animation: a11y-pulse 1.5s ease-in-out infinite; position: relative; z-index: 99999; }
+                `;
+                doc.head.appendChild(style);
+
+                const target = doc.querySelector(selector);
+                if (target) {
+                    target.classList.add("a11y-highlight-overlay");
+                    target.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            } catch {
+                // Cross-origin or other access error
+            }
+        });
+
+        panel.appendChild(previewIframe);
+    }
+
+    #closePreviewPanel() {
+        const panel = this.shadowRoot.getElementById("a11y-visual-preview-panel");
+        if (!panel) return;
+
+        panel.style.display = "none";
+
+        // Remove the preview iframe (scan iframe stays offscreen in document.body)
+        const iframe = panel.querySelector("iframe");
+        if (iframe) iframe.remove();
+    }
+
+    // --- Sparkline ---
+
+    #renderPageSparkline() {
+        const container = this.shadowRoot.getElementById("a11y-page-sparkline");
+        const labels = this.shadowRoot.getElementById("a11y-page-sparkline-labels");
+        const wrapper = this.shadowRoot.getElementById("a11y-page-sparkline-container");
+
+        if (!container || !labels || !wrapper) return;
+
+        // Reverse so oldest is first
+        const dataPoints = [...this.#pageHistory]
+            .reverse()
+            .map(e => ({ score: e.overallScore, date: e.scannedAt }));
+
+        if (dataPoints.length < 2) {
+            wrapper.style.display = "none";
+            return;
+        }
+
+        wrapper.style.display = "flex";
+        this.#renderSparkline(container, dataPoints, { width: 300, height: 50 });
+
+        const scores = dataPoints.map(d => d.score);
+        const current = scores[scores.length - 1];
+        const best = Math.max(...scores);
+        const worst = Math.min(...scores);
+        labels.innerHTML = `
+            <span><strong>Current:</strong> ${current}</span>
+            <span><strong>Best:</strong> ${best}</span>
+            <span><strong>Worst:</strong> ${worst}</span>
+        `;
+    }
+
+    #renderSparkline(container, dataPoints, { width = 200, height = 40 } = {}) {
+        if (!dataPoints || dataPoints.length < 2) {
+            container.innerHTML = "";
+            return;
+        }
+
+        const padding = 4;
+        const w = width - padding * 2;
+        const h = height - padding * 2;
+        const n = dataPoints.length;
+
+        const xStep = w / (n - 1);
+        const points = dataPoints.map((d, i) => ({
+            x: padding + i * xStep,
+            y: padding + h - (d.score / 100) * h,
+            score: d.score,
+            date: d.date,
+        }));
+
+        const polyline = points.map(p => `${p.x},${p.y}`).join(" ");
+
+        const first = dataPoints[0].score;
+        const last = dataPoints[dataPoints.length - 1].score;
+        const color = last > first + 5 ? "#16a34a" : last < first - 5 ? "#dc2626" : "#6b7280";
+
+        const dots = points.map(p => {
+            const dotColor = p.score >= 90 ? "#16a34a" : p.score >= 70 ? "#d97706" : "#dc2626";
+            return `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${dotColor}" stroke="white" stroke-width="1">
+                <title>${p.score}/100 — ${new Date(p.date).toLocaleDateString()}</title>
+            </circle>`;
+        }).join("");
+
+        container.innerHTML = `
+            <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" class="a11y-sparkline">
+                <polyline points="${polyline}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                ${dots}
+            </svg>
+        `;
+    }
+
+    // --- Print Report ---
+
+    #openPageReport() {
+        if (!this.#result || !this.#result.issues) {
+            this.#notificationContext?.peek("warning", {
+                data: { headline: "No data", message: "Run a check first to generate a report." },
+            });
+            return;
+        }
+
+        const result = this.#result;
+        const esc = (s) => this.#escapeHtml(s);
+        const date = result.checkedAt ? new Date(result.checkedAt).toLocaleDateString() : new Date().toLocaleDateString();
+        const scoreColor = result.score >= 90 ? "good" : result.score >= 70 ? "ok" : "poor";
+
+        let bodyHtml = `
+            <div class="report-header">
+                <h1>Accessibility Report</h1>
+                <div class="report-meta">
+                    <span>Date: ${esc(date)}</span>
+                    <span>WCAG Level: ${esc(this.#level)}</span>
+                    <span>URL: ${esc(result.url)}</span>
+                </div>
+            </div>
+        `;
+
+        // Summary
+        bodyHtml += `
+            <div class="report-summary">
+                <div class="report-stat">
+                    <span class="report-stat-value report-score-${scoreColor}">${result.score}</span>
+                    <span class="report-stat-label">Score</span>
+                </div>
+                <div class="report-stat">
+                    <span class="report-stat-value">${result.totalIssues}</span>
+                    <span class="report-stat-label">Total Issues</span>
+                </div>
+                <div class="report-stat">
+                    <span class="report-stat-value">${result.totalChecks}</span>
+                    <span class="report-stat-label">Checks Run</span>
+                </div>
+            </div>
+        `;
+
+        // Impact summary
+        bodyHtml += `<div class="report-impact-row">`;
+        if (result.criticalCount) bodyHtml += `<span class="report-badge-critical">${result.criticalCount} Critical</span>`;
+        if (result.seriousCount) bodyHtml += `<span class="report-badge-serious">${result.seriousCount} Serious</span>`;
+        if (result.moderateCount) bodyHtml += `<span class="report-badge-moderate">${result.moderateCount} Moderate</span>`;
+        if (result.minorCount) bodyHtml += `<span class="report-badge-minor">${result.minorCount} Minor</span>`;
+        bodyHtml += `</div>`;
+
+        // Category distribution
+        if (result.categorySummary && Object.keys(result.categorySummary).length > 0) {
+            const sortedCats = Object.entries(result.categorySummary).sort((a, b) => b[1] - a[1]);
+            const maxCat = sortedCats[0][1];
+            bodyHtml += `<h2>Issue Distribution by Category</h2><div class="report-category-chart">`;
+            for (const [cat, count] of sortedCats) {
+                const pct = Math.round((count / maxCat) * 100);
+                bodyHtml += `
+                    <div class="report-cat-row">
+                        <span class="report-cat-label">${esc(cat)}</span>
+                        <div class="report-cat-bar-bg"><div class="report-cat-bar" style="width:${pct}%"></div></div>
+                        <span class="report-cat-count">${count}</span>
+                    </div>`;
+            }
+            bodyHtml += `</div>`;
+        }
+
+        // Issues table
+        if (result.issues.length > 0) {
+            const impactOrder = ["critical", "serious", "moderate", "minor"];
+            const sortedIssues = [...result.issues].sort((a, b) =>
+                (impactOrder.indexOf(a.impact) ?? 4) - (impactOrder.indexOf(b.impact) ?? 4)
+            );
+
+            bodyHtml += `
+                <h2>Issues (${result.issues.length})</h2>
+                <table class="report-table report-issues-table">
+                    <thead>
+                        <tr>
+                            <th style="width:70px">Impact</th>
+                            <th style="width:60px">WCAG</th>
+                            <th>Description</th>
+                            <th style="width:35%">Element &amp; Context</th>
+                            <th>Recommendation</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sortedIssues.map(i => {
+                            const elementHtml = this.#buildElementPreview(i);
+                            return `<tr>
+                                <td><span class="report-badge-${esc(i.impact)}">${esc(i.impact)}</span></td>
+                                <td>${i.wcagCriterion ? `<code>${esc(i.wcagCriterion)}</code>` : ""}</td>
+                                <td>${esc(i.description)}</td>
+                                <td class="report-element-cell">${elementHtml}</td>
+                                <td class="report-recommendation">${esc(i.recommendation)}</td>
+                            </tr>`;
+                        }).join("")}
+                    </tbody>
+                </table>
+            `;
+        } else {
+            bodyHtml += `<p style="color:#16a34a;font-weight:600;text-align:center;padding:20px;">No accessibility issues found. Great work!</p>`;
+        }
+
+        this.#openPrintReport(bodyHtml, `Accessibility Report - ${result.url} - ${date}`);
+    }
+
+    /** Build element preview HTML for a single issue */
+    #buildElementPreview(issue) {
+        const esc = (s) => this.#escapeHtml(s);
+        let html = "";
+
+        if (issue.selector) {
+            html += `<div class="report-selector"><code>${esc(issue.selector)}</code></div>`;
+        }
+
+        // Color contrast swatch
+        if (issue.ruleId === "color-contrast" || issue.ruleId === "enhanced-contrast") {
+            const ratioMatch = issue.description?.match(/([\d.]+):1/);
+            const ratio = ratioMatch ? ratioMatch[1] : null;
+            const colors = this.#extractColorsFromElement(issue.element || "");
+            if (colors.fg && colors.bg) {
+                html += `
+                    <div class="report-contrast-preview">
+                        <span class="report-swatch" style="background:${colors.bg};color:${colors.fg};">Aa</span>
+                        <div class="report-contrast-info">
+                            <span>FG: <code>${esc(colors.fg)}</code></span>
+                            <span>BG: <code>${esc(colors.bg)}</code></span>
+                            ${ratio ? `<span>Ratio: <strong>${ratio}:1</strong></span>` : ""}
+                        </div>
+                    </div>`;
+                return html;
+            }
+        }
+
+        // Image preview
+        if ((issue.ruleId === "image-alt-text" || issue.category === "Images") && issue.element) {
+            const srcMatch = issue.element.match(/src=["']([^"']+)["']/i);
+            if (srcMatch) {
+                html += `<img class="report-element-img" src="${esc(srcMatch[1])}" alt="Element preview" onerror="this.style.display='none'">`;
+            }
+        }
+
+        if (issue.element) {
+            html += `<pre class="report-code">${esc(issue.element)}</pre>`;
+        }
+
+        return html || `<span class="report-no-element">No element captured</span>`;
+    }
+
+    #extractColorsFromElement(elementHtml) {
+        const styleMatch = elementHtml.match(/style=["']([^"']+)["']/i);
+        if (!styleMatch) return {};
+        const style = styleMatch[1];
+        const fgMatch = style.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);
+        const bgMatch = style.match(/background(?:-color)?\s*:\s*([^;]+)/i);
+        return {
+            fg: fgMatch ? fgMatch[1].trim() : null,
+            bg: bgMatch ? bgMatch[1].trim() : null
+        };
+    }
+
+    #openPrintReport(bodyHtml, title) {
+        const win = window.open("", "_blank");
+        if (!win) {
+            this.#notificationContext?.peek("warning", {
+                data: { headline: "Popup blocked", message: "Please allow popups for this site to view the report." },
+            });
+            return;
+        }
+        win.document.write(`<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>${this.#escapeHtml(title)}</title>
+            <style>${this.#getReportStyles()}</style>
+        </head>
+        <body>
+            <div class="report-actions">
+                <button onclick="window.print()">Print Report</button>
+            </div>
+            ${bodyHtml}
+            <div class="report-footer">
+                Generated by Accessibility Toolkit &mdash; digitalwonderlab.com
+            </div>
+        </body>
+        </html>`);
+        win.document.close();
+    }
+
+    #getReportStyles() {
+        return `
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; color: #1f2937; line-height: 1.5; }
+            h1 { font-size: 1.8em; margin: 0 0 8px 0; }
+            h2 { font-size: 1.3em; margin: 24px 0 12px 0; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px; }
+            .report-actions { text-align: right; margin-bottom: 20px; }
+            .report-actions button { padding: 8px 20px; border: 1px solid #2563eb; border-radius: 6px; background: #2563eb; color: white; font-size: 0.9em; font-weight: 600; cursor: pointer; }
+            .report-actions button:hover { background: #1d4ed8; }
+            .report-meta { display: flex; gap: 20px; color: #666; font-size: 0.9em; margin-top: 4px; flex-wrap: wrap; }
+            .report-summary { display: flex; gap: 20px; margin: 20px 0; }
+            .report-stat { display: flex; flex-direction: column; align-items: center; padding: 16px 24px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; min-width: 140px; }
+            .report-stat-value { font-size: 2em; font-weight: 800; color: #1f2937; }
+            .report-stat-label { font-size: 0.8em; color: #888; margin-top: 4px; }
+            .report-score-good { background: #f0fdf4; color: #16a34a; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
+            .report-score-ok { background: #fffbeb; color: #d97706; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
+            .report-score-poor { background: #fef2f2; color: #dc2626; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
+            .report-impact-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+            .report-table { width: 100%; border-collapse: collapse; font-size: 0.82em; margin-bottom: 20px; }
+            .report-table th { background: #f9fafb; border-bottom: 2px solid #e5e7eb; text-align: left; padding: 8px 6px; font-weight: 700; text-transform: uppercase; font-size: 0.8em; }
+            .report-table td { padding: 8px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+            .report-table tbody tr:nth-child(even) { background: #fafafa; }
+            .report-recommendation { font-size: 0.92em; color: #4b5563; }
+            .report-badge-critical { background: #fef2f2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
+            .report-badge-serious { background: #fff7ed; color: #9a3412; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
+            .report-badge-moderate { background: #fffbeb; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
+            .report-badge-minor { background: #f0fdf4; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
+            .report-category-chart { margin-bottom: 20px; }
+            .report-cat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+            .report-cat-label { width: 120px; font-size: 0.85em; font-weight: 600; text-align: right; flex-shrink: 0; }
+            .report-cat-bar-bg { flex: 1; height: 18px; background: #f3f4f6; border-radius: 4px; overflow: hidden; }
+            .report-cat-bar { height: 100%; background: #3b82f6; border-radius: 4px; }
+            .report-cat-count { width: 40px; font-size: 0.85em; font-weight: 700; color: #374151; }
+            .report-element-cell { max-width: 350px; }
+            .report-selector { margin-bottom: 4px; }
+            .report-selector code { font-size: 0.8em; color: #6b21a8; background: #f5f3ff; }
+            .report-code { background: #f8f8f8; border: 1px solid #e5e7eb; border-radius: 4px; padding: 6px 8px; font-size: 0.78em; line-height: 1.4; overflow-x: auto; max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 4px 0; font-family: "SF Mono", Consolas, "Liberation Mono", Menlo, monospace; }
+            .report-no-element { color: #9ca3af; font-size: 0.85em; font-style: italic; }
+            .report-contrast-preview { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
+            .report-swatch { display: inline-block; width: 60px; height: 36px; border-radius: 4px; text-align: center; line-height: 36px; font-weight: bold; font-size: 16px; border: 1px solid #d1d5db; flex-shrink: 0; }
+            .report-contrast-info { display: flex; flex-direction: column; gap: 1px; font-size: 0.8em; }
+            .report-contrast-info code { font-size: 0.9em; }
+            .report-element-img { max-width: 120px; max-height: 80px; border: 1px solid #e5e7eb; border-radius: 4px; margin-bottom: 4px; display: block; }
+            .report-issues-table { page-break-inside: auto; }
+            .report-issues-table tr { page-break-inside: avoid; }
+            .report-footer { margin-top: 40px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #e5e7eb; padding-top: 12px; }
+            code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; word-break: break-all; }
+            @media print {
+                .report-actions { display: none !important; }
+                body { padding: 0; margin: 0; }
+                .report-footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #999; }
+            }
+        `;
     }
 
     #showLoading(show) {

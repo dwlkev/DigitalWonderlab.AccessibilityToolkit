@@ -40,7 +40,10 @@ public class RunAccessibilityMigration : INotificationHandler<UmbracoApplication
         var migrationPlan = new MigrationPlan("AccessibilityToolkit");
         migrationPlan.From(string.Empty)
             .To<AddAccessibilityResultsTable>("accessibilitytoolkit-001")
-            .To<AddAccessibilityAuditsTable>("accessibilitytoolkit-002");
+            .To<AddAccessibilityAuditsTable>("accessibilitytoolkit-002")
+            .To<AddRootNodeNameColumn>("accessibilitytoolkit-003")
+            .To<AddAccessibilitySettingsTable>("accessibilitytoolkit-004")
+            .To<AddDatabaseIndexes>("accessibilitytoolkit-005");
 
         var upgrader = new Upgrader(migrationPlan);
         upgrader.Execute(_migrationPlanExecutor, _coreScopeProvider, _keyValueService);

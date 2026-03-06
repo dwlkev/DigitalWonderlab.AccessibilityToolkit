@@ -31,6 +31,10 @@ public class AccessibilityAuditDto
     [SpecialDbType(SpecialDbTypes.NVARCHARMAX)]
     public string ResultJson { get; set; } = string.Empty;
 
+    [Column("RootNodeName")]
+    [NullSetting(NullSetting = NullSettings.Null)]
+    public string? RootNodeName { get; set; }
+
     [Column("ScannedAt")]
     public DateTime ScannedAt { get; set; }
 }
