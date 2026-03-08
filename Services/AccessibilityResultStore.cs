@@ -41,6 +41,13 @@ public class AccessibilityResultStore : IAccessibilityResultStore
         scope.Complete();
     }
 
+    public void UpdateResult(AccessibilityResultDto dto)
+    {
+        using var scope = _scopeProvider.CreateScope();
+        scope.Database.Update(dto);
+        scope.Complete();
+    }
+
     public void DeleteResult(int id)
     {
         using var scope = _scopeProvider.CreateScope();

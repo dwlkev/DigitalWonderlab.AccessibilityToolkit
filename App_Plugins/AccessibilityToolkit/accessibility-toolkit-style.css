@@ -505,6 +505,59 @@
     margin-top: 8px !important;
 }
 
+.a11y-services-inline-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.a11y-faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.a11y-faq-item h4 {
+    margin: 0 0 4px 0;
+    font-size: 0.98em;
+}
+
+.a11y-faq-item p {
+    margin: 0;
+}
+
+.a11y-services-list {
+    margin: 10px 0 6px 0;
+    display: grid;
+    gap: 8px;
+}
+
+.a11y-services-item {
+    border: 1px solid #dbeafe;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f3f8ff 100%);
+    font-size: 0.93em;
+    color: #1f2937;
+    font-weight: 500;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.a11y-services-tick {
+    color: #2563eb;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-top: 1px;
+}
+
+.a11y-issues-actions .a11y-audit-history-report-btn,
+.a11y-issues-actions .a11y-audit-history-export-btn {
+    margin: 0;
+}
+
 .a11y-dashboard-recent {
     margin-bottom: 15px;
 }
@@ -1086,6 +1139,48 @@ uui-tab-group {
     color: #16a34a;
     font-weight: 600;
     margin-left: 10px;
+}
+
+.a11y-license-panel {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fafafa;
+    padding: 8px 10px;
+    display: grid;
+    gap: 6px;
+}
+
+.a11y-license-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.9em;
+}
+
+.a11y-license-row span {
+    color: #666;
+}
+
+.a11y-license-status-active {
+    color: #166534;
+}
+
+.a11y-license-status-expired {
+    color: #9a3412;
+}
+
+.a11y-license-status-invalid {
+    color: #991b1b;
+}
+
+.a11y-license-error {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 0.85em;
 }
 
 /* Issue group headers (Content / Code / Design) */

@@ -60,9 +60,11 @@ public class AccessibilityController : UmbracoApiController
             var result = await _analyzer.AnalyzeAsync(url, wcagLevel);
 
             // Save result to history
-            SaveResultToHistory(nodeKey, result, wcagLevel);
+            var savedId = SaveResultToHistory(nodeKey, result, wcagLevel);
 
-            return Ok(result);
+            return Ok(new { result.Url, result.Score, result.TotalChecks, result.TotalIssues,
+                result.CriticalCount, result.SeriousCount, result.ModerateCount, result.MinorCount,
+                result.Issues, result.CategorySummary, result.CheckedAt, resultId = savedId });
         }
         catch (HttpRequestException ex)
         {
@@ -250,6 +252,28 @@ public class AccessibilityController : UmbracoApiController
         return Ok(new { resultJson = audit.ResultJson });
     }
 
+    [HttpPost]
+    public IActionResult UpdateResult(int id, [FromBody] UpdateResultRequest request)
+    {
+        if (request == null)
+            return BadRequest(new { error = "Request body is required." });
+
+        var existing = _resultStore.GetResultById(id);
+        if (existing == null)
+            return NotFound(new { error = "Result not found." });
+
+        existing.OverallScore = request.Score;
+        existing.TotalIssues = request.TotalIssues;
+        existing.CriticalCount = request.CriticalCount;
+        existing.SeriousCount = request.SeriousCount;
+        existing.ModerateCount = request.ModerateCount;
+        existing.MinorCount = request.MinorCount;
+        existing.ResultJson = request.ResultJson ?? existing.ResultJson;
+
+        _resultStore.UpdateResult(existing);
+        return Ok(new { success = true });
+    }
+
     [HttpGet]
     public IActionResult ExportResult(int id)
     {
@@ -353,6 +377,7 @@ public class AccessibilityController : UmbracoApiController
         return Ok(new
         {
             visualChecks = info.IsProEnabled,
+            licenseType = info.LicenseType,
             status = info.Status,
             domain = info.Domain,
             isProEnabled = info.IsProEnabled,
@@ -467,7 +492,7 @@ public class AccessibilityController : UmbracoApiController
             .ToList();
     }
 
-    private void SaveResultToHistory(Guid nodeKey, AccessibilityResult result, WcagLevel wcagLevel)
+    private int SaveResultToHistory(Guid nodeKey, AccessibilityResult result, WcagLevel wcagLevel)
     {
         var dto = new AccessibilityResultDto
         {
@@ -485,6 +510,7 @@ public class AccessibilityController : UmbracoApiController
         };
 
         _resultStore.SaveResult(dto);
+        return dto.Id;
     }
 
     private static object MapToHistoryEntry(AccessibilityResultDto dto) => new

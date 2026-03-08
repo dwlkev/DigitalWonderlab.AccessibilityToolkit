@@ -41,6 +41,8 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     #excludedDocTypes = [];
     #excludedNodeKeys = [];
     #allDocumentTypes = [];
+    #licenseInfo = null;
+    #servicesUrl = "https://digitalwonderlab.com/contact/";
 
     constructor() {
         super();
@@ -122,6 +124,18 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         // Clear all data
         const clearBtn = this.shadowRoot.getElementById("a11y-clear-data-btn");
         clearBtn?.addEventListener("click", () => this.#clearAllData());
+
+        const servicesTabBtn = this.shadowRoot.getElementById("a11y-services-tab-btn");
+        servicesTabBtn?.addEventListener("click", () => this.#openServicesPage());
+        const faqHelpLink = this.shadowRoot.getElementById("a11y-faq-help-link");
+        faqHelpLink?.addEventListener("click", (e) => {
+            e.preventDefault();
+            this.#switchTab("help-services");
+        });
+    }
+
+    #openServicesPage() {
+        window.open(this.#servicesUrl, "_blank", "noopener");
     }
 
     // --- Tabs ---
@@ -161,9 +175,10 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         body.style.display = "none";
 
         try {
-            const [exclusionsResp, docTypesResp] = await Promise.all([
+            const [exclusionsResp, docTypesResp, featuresResp] = await Promise.all([
                 fetch("/umbraco/AccessibilityToolkit/Accessibility/GetExclusions"),
                 fetch("/umbraco/AccessibilityToolkit/Accessibility/GetDocumentTypes"),
+                fetch("/umbraco/AccessibilityToolkit/Accessibility/GetFeatures"),
             ]);
 
             if (exclusionsResp.ok) {
@@ -179,7 +194,12 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                 this.#allDocumentTypes = await docTypesResp.json();
             }
 
+            if (featuresResp.ok) {
+                this.#licenseInfo = await featuresResp.json();
+            }
+
             this.#settingsLoaded = true;
+            this.#renderLicenseInfo();
             this.#renderDocTypeList();
             this.#renderExcludedPagesList();
         } catch (err) {
@@ -385,7 +405,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     async #openNodePicker() {
         if (!this.#modalManager) {
             this.#notificationContext?.peek("warning", {
-                data: { headline: "Not ready", message: "Modal manager not available. Paste a GUID instead." },
+                data: { headline: "Not ready", message: "Modal manager not available right now. Please try again." },
             });
             return;
         }
@@ -402,9 +422,6 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                 display.textContent = this.#selectedNodeKey;
                 display.classList.add("a11y-node-selected");
 
-                // Clear the fallback input since picker was used
-                const input = this.shadowRoot.getElementById("a11y-audit-nodekey");
-                if (input) input.value = "";
             }
         } catch {
             // User cancelled the modal — do nothing
@@ -516,6 +533,42 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         }
 
         this.#renderPagination();
+    }
+
+    #renderLicenseInfo() {
+        const info = this.#licenseInfo || {};
+        const setText = (id, value) => {
+            const el = this.shadowRoot.getElementById(id);
+            if (el) el.textContent = value ?? "-";
+        };
+
+        setText("a11y-license-type", info.licenseType || "Free");
+        setText("a11y-license-status", info.status || "Active");
+        setText("a11y-license-pro", info.isProEnabled ? "Yes" : "No");
+        setText("a11y-license-domain", info.domain || "*");
+
+        const expires = info.expiresAt ? new Date(info.expiresAt).toLocaleString() : "No expiry";
+        setText("a11y-license-expires", expires);
+
+        const statusEl = this.shadowRoot.getElementById("a11y-license-status");
+        if (statusEl) {
+            statusEl.classList.remove("a11y-license-status-active", "a11y-license-status-expired", "a11y-license-status-invalid");
+            const status = String(info.status || "Active").toLowerCase();
+            if (status === "expired") statusEl.classList.add("a11y-license-status-expired");
+            else if (status === "invalid") statusEl.classList.add("a11y-license-status-invalid");
+            else statusEl.classList.add("a11y-license-status-active");
+        }
+
+        const errorEl = this.shadowRoot.getElementById("a11y-license-error");
+        if (errorEl) {
+            if (info.validationError) {
+                errorEl.textContent = info.validationError;
+                errorEl.style.display = "block";
+            } else {
+                errorEl.textContent = "";
+                errorEl.style.display = "none";
+            }
+        }
     }
 
     async #deleteEntry(id) {
@@ -675,7 +728,6 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     // --- Audit ---
 
     async #runAudit() {
-        const nodeKeyInput = this.shadowRoot.getElementById("a11y-audit-nodekey");
         const levelSelect = this.shadowRoot.getElementById("a11y-audit-level");
         const loading = this.shadowRoot.getElementById("a11y-audit-loading");
         const loadingText = this.shadowRoot.querySelector(".a11y-loading-text");
@@ -687,11 +739,10 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         const progressLog = this.shadowRoot.getElementById("a11y-audit-progress-log");
         const auditBtn = this.shadowRoot.getElementById("a11y-audit-btn");
 
-        // Use picker selection first, fall back to manual input
-        const nodeKey = this.#selectedNodeKey || nodeKeyInput?.value?.trim();
+        const nodeKey = this.#selectedNodeKey;
         if (!nodeKey) {
             this.#notificationContext?.peek("warning", {
-                data: { headline: "Missing input", message: "Pick a content node or enter a node key to audit." },
+                data: { headline: "Missing input", message: "Pick a content node to audit." },
             });
             return;
         }
@@ -704,8 +755,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         progressLog.innerHTML = "";
 
         const level = levelSelect?.value || "AA";
-        const includeVisual = this.shadowRoot.getElementById("a11y-audit-visual-checks")?.checked ?? true;
-        const visualEnabled = includeVisual && await this.#checkVisualEnabled();
+        const visualEnabled = await this.#checkVisualEnabled();
 
         try {
             // Step 1: Discover pages
@@ -805,6 +855,21 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                 }
             };
 
+            // Strip screenshot base64 data from stored audit JSON to keep DB size reasonable
+            const storageData = {
+                ...auditData,
+                pages: auditData.pages.map(p => ({
+                    ...p,
+                    issues: (p.issues || []).map(i => {
+                        if (i.screenshot) {
+                            const { screenshot, ...rest } = i;
+                            return { ...rest, screenshotStatus: "stored-separately" };
+                        }
+                        return i;
+                    })
+                }))
+            };
+
             await fetch("/umbraco/AccessibilityToolkit/Accessibility/SaveAudit", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -814,7 +879,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     totalPages: scannedCount,
                     averageScore,
                     totalIssues,
-                    resultJson: JSON.stringify(auditData)
+                    resultJson: JSON.stringify(storageData)
                 })
             });
 
@@ -1039,6 +1104,15 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                         <span class="report-stat-value">${s.totalIssues || 0}</span>
                         <span class="report-stat-label">Total Issues</span>
                     </div>
+                </div>
+            `;
+
+            // Support CTA
+            bodyHtml += `
+                <div class="report-services-cta">
+                    <strong>Need help fixing these issues?</strong>
+                    <span>Book a manual accessibility audit and remediation plan from Digital Wonderlab.</span>
+                    <a href="${this.#escapeHtml(this.#servicesUrl)}" target="_blank" rel="noopener">Contact our accessibility team</a>
                 </div>
             `;
 
@@ -1279,6 +1353,16 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             const ratioMatch = issue.description?.match(/([\d.]+):1/);
             const ratio = ratioMatch ? ratioMatch[1] : null;
 
+            // Screenshot thumbnail (click to expand)
+            if (issue.screenshot && issue.screenshotStatus === "ok") {
+                html += `<div class="report-screenshot-container">
+                    <img class="report-screenshot-thumb" src="${issue.screenshot}" alt="Contrast preview"
+                         onclick="this.classList.toggle('report-screenshot-expanded')" title="Click to expand">
+                </div>`;
+            } else if (issue.screenshotStatus === "unavailable" || issue.screenshotStatus === "capped") {
+                html += `<div class="report-screenshot-fallback">${issue.screenshotStatus === "capped" ? "Screenshot limit reached" : (issue.screenshotError || "Screenshot unavailable")}</div>`;
+            }
+
             // Use fgColor/bgColor from visual checks if available
             let fg = null, bg = null;
             if (issue.fgColor && issue.bgColor) {
@@ -1479,6 +1563,10 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             .report-score-ok { background: #fffbeb; color: #d97706; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
             .report-score-poor { background: #fef2f2; color: #dc2626; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
             .report-impact-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+            .report-services-cta { margin: 14px 0 18px; padding: 10px 12px; border-radius: 8px; border: 1px solid #dbeafe; background: #eff6ff; display: flex; gap: 8px; flex-direction: column; }
+            .report-services-cta strong { color: #1e3a8a; }
+            .report-services-cta span { color: #1f2937; font-size: 0.92em; }
+            .report-services-cta a { font-weight: 600; }
             .report-table { width: 100%; border-collapse: collapse; font-size: 0.82em; margin-bottom: 20px; }
             .report-table th { background: #f9fafb; border-bottom: 2px solid #e5e7eb; text-align: left; padding: 8px 6px; font-weight: 700; text-transform: uppercase; font-size: 0.8em; }
             .report-table td { padding: 8px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
@@ -1519,6 +1607,12 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             /* Image preview */
             .report-element-img { max-width: 120px; max-height: 80px; border: 1px solid #e5e7eb; border-radius: 4px; margin-bottom: 4px; display: block; }
 
+            /* Screenshot thumbnails */
+            .report-screenshot-container { margin: 4px 0; }
+            .report-screenshot-thumb { max-width: 200px; max-height: 60px; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; transition: max-width 0.2s, max-height 0.2s; }
+            .report-screenshot-thumb.report-screenshot-expanded { max-width: 400px; max-height: 120px; }
+            .report-screenshot-fallback { font-size: 0.75em; color: #9ca3af; font-style: italic; margin: 2px 0; }
+
             .report-group-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
             .report-group-content { background: #eff6ff; color: #1d4ed8; }
             .report-group-code { background: #f5f3ff; color: #6d28d9; }
@@ -1546,6 +1640,8 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     }
 
     // --- Visual Checks for Audits ---
+
+    static #MAX_SCREENSHOTS_PER_PAGE = 20;
 
     #visualChecksEnabled = null;
 
@@ -1594,6 +1690,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         const issues = [];
         const win = doc.defaultView || window;
         const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+        let screenshotCount = 0;
 
         while (walker.nextNode()) {
             const el = walker.currentNode;
@@ -1614,7 +1711,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
 
             if (ratio < requiredRatio) {
                 const impact = ratio < 2.0 ? "critical" : ratio < 3.0 ? "serious" : "moderate";
-                issues.push({
+                const issue = {
                     ruleId: "visual-color-contrast",
                     description: `Text has insufficient contrast ratio ${ratio.toFixed(2)}:1 (requires ${requiredRatio}:1 for ${isLargeText ? "large" : "normal"} text)`,
                     category: "Color",
@@ -1629,10 +1726,79 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     bgColor: { r: bgColor.r, g: bgColor.g, b: bgColor.b },
                     contrastRatio: ratio,
                     source: "visual"
-                });
+                };
+
+                // Capture screenshot for top issues (cap at limit)
+                if (screenshotCount < AccessibilityToolkitDashboard.#MAX_SCREENSHOTS_PER_PAGE) {
+                    const shot = this.#captureElementScreenshot(el, win, fgColor, bgColor, style);
+                    if (shot) {
+                        issue.screenshot = shot;
+                        issue.screenshotStatus = "ok";
+                        screenshotCount++;
+                    } else {
+                        issue.screenshotStatus = "unavailable";
+                        issue.screenshotError = "Canvas capture failed";
+                    }
+                } else {
+                    issue.screenshotStatus = "capped";
+                }
+
+                issues.push(issue);
             }
         }
         return issues;
+    }
+
+    /** Capture a synthetic screenshot of an element showing text with its fg/bg colors */
+    #captureElementScreenshot(el, win, fgColor, bgColor, style) {
+        try {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            const maxW = 400, maxH = 120;
+            canvas.width = maxW;
+            canvas.height = maxH;
+
+            // Draw background
+            ctx.fillStyle = `rgb(${bgColor.r},${bgColor.g},${bgColor.b})`;
+            ctx.fillRect(0, 0, maxW, maxH);
+
+            // Draw text using computed styles
+            const fontSize = Math.min(Math.max(parseFloat(style.fontSize) || 16, 12), 48);
+            const fontWeight = style.fontWeight || "400";
+            const fontFamily = style.fontFamily || "sans-serif";
+
+            ctx.fillStyle = `rgb(${fgColor.r},${fgColor.g},${fgColor.b})`;
+            ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+            ctx.textBaseline = "middle";
+
+            const text = (el.textContent || "").trim().substring(0, 80) || "Sample text";
+            const words = text.split(/\s+/);
+            let line = "";
+            let y = fontSize + 8;
+            const lineHeight = fontSize * 1.3;
+            const maxLines = Math.floor((maxH - 16) / lineHeight);
+            let lineCount = 0;
+
+            for (const word of words) {
+                const testLine = line ? `${line} ${word}` : word;
+                if (ctx.measureText(testLine).width > maxW - 24 && line) {
+                    ctx.fillText(line, 12, y);
+                    line = word;
+                    y += lineHeight;
+                    lineCount++;
+                    if (lineCount >= maxLines) break;
+                } else {
+                    line = testLine;
+                }
+            }
+            if (line && lineCount < maxLines) {
+                ctx.fillText(line, 12, y);
+            }
+
+            return canvas.toDataURL("image/jpeg", 0.7);
+        } catch {
+            return null;
+        }
     }
 
     #hasDirectText(el) {

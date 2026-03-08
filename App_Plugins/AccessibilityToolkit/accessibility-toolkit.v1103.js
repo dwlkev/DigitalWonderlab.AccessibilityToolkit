@@ -11,6 +11,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     #level = "AA";
     #pageHistory = [];
     #visualChecksEnabled = false;
+    #servicesUrl = "https://digitalwonderlab.com/contact/";
 
     constructor() {
         super();
@@ -125,8 +126,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                             <select id="a11y-filter-category">
                                 <option value="">All Categories</option>
                             </select>
-                            <uui-button label="Print Report" id="a11y-report-btn" look="secondary"></uui-button>
-                            <uui-button label="Export CSV" id="a11y-export-btn" look="secondary"></uui-button>
+                            <button id="a11y-report-btn" class="a11y-audit-history-report-btn" title="Export Report">Export</button>
+                            <button id="a11y-export-btn" class="a11y-audit-history-export-btn" title="Export CSV">CSV</button>
                         </div>
                     </div>
 
@@ -228,6 +229,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             }
 
             this.#result = await response.json();
+            const savedResultId = this.#result.resultId;
 
             // Run visual checks if enabled
             if (this.#visualChecksEnabled && this.#result.url) {
@@ -236,6 +238,11 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                     const visualIssues = await this.#runVisualChecksOnPage(this.#result.url);
                     if (visualIssues.length > 0) {
                         this.#mergeVisualIssues(visualIssues);
+
+                        // Persist merged result (with visual issues) back to server before refreshing history.
+                        if (savedResultId) {
+                            await this.#persistMergedResult(savedResultId);
+                        }
                     }
                 } catch (vErr) {
                     console.warn("Visual checks failed, continuing with HTML results only", vErr);
@@ -252,8 +259,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                 },
             });
 
-            // Refresh page history after a successful check
-            this.#loadPageHistory();
+            // Refresh page history after a successful check.
+            await this.#loadPageHistory();
         } catch (error) {
             console.error("Accessibility check failed", error);
             this.#showError(error.message);
@@ -342,6 +349,39 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         result.score = Math.max(0, result.score - totalDeduction);
     }
 
+    /** Persist the visual-augmented result back to the server */
+    async #persistMergedResult(resultId) {
+        try {
+            const r = this.#result;
+            // Strip screenshot data from the persisted copy to keep DB payload reasonable
+            const issuesForStorage = (r.issues || []).map(i => {
+                if (i.screenshot) {
+                    const { screenshot, ...rest } = i;
+                    return { ...rest, screenshotStatus: "stored-separately" };
+                }
+                return i;
+            });
+            const storageResult = { ...r, issues: issuesForStorage };
+            delete storageResult.resultId;
+
+            await fetch(`/umbraco/AccessibilityToolkit/Accessibility/UpdateResult?id=${resultId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    score: r.score,
+                    totalIssues: r.totalIssues,
+                    criticalCount: r.criticalCount,
+                    seriousCount: r.seriousCount,
+                    moderateCount: r.moderateCount,
+                    minorCount: r.minorCount,
+                    resultJson: JSON.stringify(storageResult),
+                }),
+            });
+        } catch (err) {
+            console.warn("Failed to persist visual-merged result", err);
+        }
+    }
+
     // --- Page History ---
 
     async #loadPageHistory() {
@@ -393,14 +433,18 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                 <td><span class="a11y-dashboard-score ${scoreClass}">${entry.overallScore}</span></td>
                 <td>${this.#escapeHtml(entry.wcagLevel)}</td>
                 <td>${entry.totalIssues}</td>
-                <td>
-                    <button class="a11y-history-view-btn" data-id="${entry.id}" title="View Report">Report</button>
+                <td class="a11y-audit-history-actions">
+                    <button class="a11y-audit-history-report-btn" data-id="${entry.id}" title="Export Report">Export</button>
+                    <button class="a11y-audit-history-export-btn" data-id="${entry.id}" title="Export CSV">CSV</button>
                     <button class="a11y-dashboard-delete-btn" data-id="${entry.id}" title="Delete">&times;</button>
                 </td>
             `;
 
-            const viewBtn = tr.querySelector(".a11y-history-view-btn");
-            viewBtn?.addEventListener("click", () => this.#viewHistoryReport(entry.id, entry.wcagLevel));
+            const reportBtn = tr.querySelector(".a11y-audit-history-report-btn");
+            reportBtn?.addEventListener("click", () => this.#viewHistoryReport(entry.id, entry.wcagLevel));
+
+            const exportBtn = tr.querySelector(".a11y-audit-history-export-btn");
+            exportBtn?.addEventListener("click", () => this.#exportHistoryCsv(entry.id));
 
             const deleteBtn = tr.querySelector(".a11y-dashboard-delete-btn");
             deleteBtn?.addEventListener("click", () => this.#deleteHistoryEntry(entry.id));
@@ -440,6 +484,20 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         } catch (err) {
             this.#notificationContext?.peek("danger", {
                 data: { headline: "Report failed", message: err.message },
+            });
+        }
+    }
+
+    async #exportHistoryCsv(id) {
+        try {
+            const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/ExportResult?id=${id}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const savedResult = JSON.parse(data.resultJson);
+            this.#downloadCsv(savedResult, "accessibility-history");
+        } catch (err) {
+            this.#notificationContext?.peek("danger", {
+                data: { headline: "Export failed", message: err.message },
             });
         }
     }
@@ -679,9 +737,14 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             return;
         }
 
-        const pageUrl = this.#result.url || "";
+        this.#downloadCsv(this.#result, "accessibility-report");
+    }
+
+    #downloadCsv(result, filePrefix) {
+        const pageUrl = result?.url || "";
+        const issues = result?.issues || [];
         const headers = ["Page URL", "Impact", "Category", "Description", "WCAG Criterion", "Level", "Rule ID", "Element", "Selector", "Recommendation"];
-        const rows = this.#result.issues.map((i) => [
+        const rows = issues.map((i) => [
             pageUrl,
             i.impact,
             i.category,
@@ -702,17 +765,20 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `accessibility-report-${new Date().toISOString().slice(0, 10)}.csv`);
+        link.setAttribute("download", `${filePrefix}-${new Date().toISOString().slice(0, 10)}.csv`);
         link.click();
         URL.revokeObjectURL(url);
     }
 
     // --- Visual contrast analysis ---
 
+    static #MAX_SCREENSHOTS_PER_PAGE = 20;
+
     #analyzeContrastInDocument(doc) {
         const issues = [];
         const win = doc.defaultView || window;
         const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+        let screenshotCount = 0;
 
         while (walker.nextNode()) {
             const el = walker.currentNode;
@@ -736,7 +802,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
 
             if (ratio < requiredRatio) {
                 const impact = ratio < 2.0 ? "critical" : ratio < 3.0 ? "serious" : "moderate";
-                issues.push({
+                const issue = {
                     ruleId: "visual-color-contrast",
                     description: `Text has insufficient contrast ratio ${ratio.toFixed(2)}:1 (requires ${requiredRatio}:1 for ${isLargeText ? "large" : "normal"} text)`,
                     category: "Color",
@@ -750,9 +816,25 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                     fgColor: { r: fgColor.r, g: fgColor.g, b: fgColor.b },
                     bgColor: { r: bgColor.r, g: bgColor.g, b: bgColor.b },
                     contrastRatio: ratio,
-                });
+                };
+
+                // Capture screenshot for top issues (by severity order, cap at limit)
+                if (screenshotCount < AccessibilityToolkitView.#MAX_SCREENSHOTS_PER_PAGE) {
+                    const shot = this.#captureElementScreenshot(el, win, fgColor, bgColor, style);
+                    if (shot) {
+                        issue.screenshot = shot;
+                        issue.screenshotStatus = "ok";
+                        screenshotCount++;
+                    } else {
+                        issue.screenshotStatus = "unavailable";
+                        issue.screenshotError = "Canvas capture failed";
+                    }
+                } else {
+                    issue.screenshotStatus = "capped";
+                }
+
+                issues.push(issue);
             } else if (!aaaPassed) {
-                // AAA failure is minor info only
                 issues.push({
                     ruleId: "visual-color-contrast-enhanced",
                     description: `Text meets AA but fails AAA enhanced contrast — ratio ${ratio.toFixed(2)}:1 (AAA requires ${isLargeText ? "4.5" : "7.0"}:1)`,
@@ -771,6 +853,59 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             }
         }
         return issues;
+    }
+
+    /** Capture a synthetic screenshot of an element showing text with its fg/bg colors */
+    #captureElementScreenshot(el, win, fgColor, bgColor, style) {
+        try {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            const maxW = 400, maxH = 120;
+            canvas.width = maxW;
+            canvas.height = maxH;
+
+            // Draw background
+            ctx.fillStyle = `rgb(${bgColor.r},${bgColor.g},${bgColor.b})`;
+            ctx.fillRect(0, 0, maxW, maxH);
+
+            // Draw text using computed styles
+            const fontSize = Math.min(Math.max(parseFloat(style.fontSize) || 16, 12), 48);
+            const fontWeight = style.fontWeight || "400";
+            const fontFamily = style.fontFamily || "sans-serif";
+
+            ctx.fillStyle = `rgb(${fgColor.r},${fgColor.g},${fgColor.b})`;
+            ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+            ctx.textBaseline = "middle";
+
+            const text = (el.textContent || "").trim().substring(0, 80) || "Sample text";
+            // Word-wrap if text is too wide
+            const words = text.split(/\s+/);
+            let line = "";
+            let y = fontSize + 8;
+            const lineHeight = fontSize * 1.3;
+            const maxLines = Math.floor((maxH - 16) / lineHeight);
+            let lineCount = 0;
+
+            for (const word of words) {
+                const testLine = line ? `${line} ${word}` : word;
+                if (ctx.measureText(testLine).width > maxW - 24 && line) {
+                    ctx.fillText(line, 12, y);
+                    line = word;
+                    y += lineHeight;
+                    lineCount++;
+                    if (lineCount >= maxLines) break;
+                } else {
+                    line = testLine;
+                }
+            }
+            if (line && lineCount < maxLines) {
+                ctx.fillText(line, 12, y);
+            }
+
+            return canvas.toDataURL("image/jpeg", 0.7);
+        } catch {
+            return null;
+        }
     }
 
     #hasDirectText(el) {
@@ -994,6 +1129,14 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         if (result.minorCount) bodyHtml += `<span class="report-badge-minor">${result.minorCount} Minor</span>`;
         bodyHtml += `</div>`;
 
+        bodyHtml += `
+            <div class="report-services-cta">
+                <strong>Need help fixing these issues?</strong>
+                <span>Book a manual accessibility audit and remediation plan from Digital Wonderlab.</span>
+                <a href="${esc(this.#servicesUrl)}" target="_blank" rel="noopener">Contact our accessibility team</a>
+            </div>
+        `;
+
         // Category distribution
         if (result.categorySummary && Object.keys(result.categorySummary).length > 0) {
             const sortedCats = Object.entries(result.categorySummary).sort((a, b) => b[1] - a[1]);
@@ -1077,6 +1220,16 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             issue.ruleId === "visual-color-contrast" || issue.ruleId === "visual-color-contrast-enhanced") {
             const ratioMatch = issue.description?.match(/([\d.]+):1/);
             const ratio = ratioMatch ? ratioMatch[1] : null;
+
+            // Screenshot thumbnail (click to expand)
+            if (issue.screenshot && issue.screenshotStatus === "ok") {
+                html += `<div class="report-screenshot-container">
+                    <img class="report-screenshot-thumb" src="${issue.screenshot}" alt="Contrast preview"
+                         onclick="this.classList.toggle('report-screenshot-expanded')" title="Click to expand">
+                </div>`;
+            } else if (issue.screenshotStatus === "unavailable" || issue.screenshotStatus === "capped") {
+                html += `<div class="report-screenshot-fallback">${issue.screenshotStatus === "capped" ? "Screenshot limit reached" : (issue.screenshotError || "Screenshot unavailable")}</div>`;
+            }
 
             // Use fgColor/bgColor from visual checks if available
             let fg = null, bg = null;
@@ -1176,6 +1329,10 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             .report-score-ok { background: #fffbeb; color: #d97706; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
             .report-score-poor { background: #fef2f2; color: #dc2626; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
             .report-impact-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+            .report-services-cta { margin: 14px 0 18px; padding: 10px 12px; border-radius: 8px; border: 1px solid #dbeafe; background: #eff6ff; display: flex; gap: 8px; flex-direction: column; }
+            .report-services-cta strong { color: #1e3a8a; }
+            .report-services-cta span { color: #1f2937; font-size: 0.92em; }
+            .report-services-cta a { font-weight: 600; }
             .report-table { width: 100%; border-collapse: collapse; font-size: 0.82em; margin-bottom: 20px; }
             .report-table th { background: #f9fafb; border-bottom: 2px solid #e5e7eb; text-align: left; padding: 8px 6px; font-weight: 700; text-transform: uppercase; font-size: 0.8em; }
             .report-table td { padding: 8px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
@@ -1201,6 +1358,10 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             .report-contrast-info { display: flex; flex-direction: column; gap: 1px; font-size: 0.8em; }
             .report-contrast-info code { font-size: 0.9em; }
             .report-element-img { max-width: 120px; max-height: 80px; border: 1px solid #e5e7eb; border-radius: 4px; margin-bottom: 4px; display: block; }
+            .report-screenshot-container { margin: 4px 0; }
+            .report-screenshot-thumb { max-width: 200px; max-height: 60px; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; transition: max-width 0.2s, max-height 0.2s; }
+            .report-screenshot-thumb.report-screenshot-expanded { max-width: 400px; max-height: 120px; }
+            .report-screenshot-fallback { font-size: 0.75em; color: #9ca3af; font-style: italic; margin: 2px 0; }
             .report-issues-table { page-break-inside: auto; }
             .report-issues-table tr { page-break-inside: avoid; }
             .report-footer { margin-top: 40px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #e5e7eb; padding-top: 12px; }

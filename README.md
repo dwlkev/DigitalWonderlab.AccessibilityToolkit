@@ -11,7 +11,7 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 - **Issues grouped by Content / Code / Design** with impact badges (critical/serious/moderate/minor)
 - **Expandable detail rows** showing element snippets, selectors, and fix recommendations
 - **Visual checks** run automatically as part of each scan — computed colour contrast analysis using the browser's rendering engine
-- **Element screenshots** captured inline for visual issues using html2canvas
+- **Element preview snippets** generated for visual issues using browser canvas
 - **Category filtering** and **impact sorting**
 - **CSV export** for offline review and reporting
 - **Printable reports** with executive summary, category breakdown, and per-issue detail
@@ -28,15 +28,16 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 - **Accessibility Toolkit dashboard** in the Content section
 - **Recent Reports** — paginated table of all recent page-level scans
 - **Audit History** — table of past site audits with sparkline trend chart, re-export, and delete
-- **Site Audit** form with content node picker, WCAG level selector, and visual checks toggle
-- **Settings** — licence status, audit exclusions (document types and specific pages), data management
+- **Site Audit** form with content node picker and WCAG level selector (visual checks run automatically when enabled)
+- **FAQ** and **Help & Services** tabs for guidance and expert support
+- **Settings** — audit exclusions (document types and specific pages), data management
 
 ### Visual Checks
 - Browser-based accessibility analysis using the editor's own browser
 - Catches issues that static HTML analysis cannot: computed colour contrast ratios against real rendered backgrounds
 - Runs automatically as part of every scan — no separate step required
-- Element screenshots captured inline for visual context in reports
-- Optional toggle in site audits ("Include visual checks")
+- Element preview snippets are captured inline for visual context in reports
+- Site audits use the selected content node picker only (no manual GUID entry)
 
 ## Compatibility
 
@@ -67,14 +68,16 @@ No additional configuration required. The package registers itself automatically
 
 ### Site Audit
 1. Go to the **Content** section and open the **Accessibility Toolkit** dashboard
-2. Click **Pick Content Node** to select a root node (or paste a GUID)
+2. Click **Pick Content Node** to select a root node
 3. Select a WCAG level
 4. Click **Run Audit**
 5. Review the summary cards and expand the page list for per-page results
 6. Click **Export CSV** to download the full audit report
 
-### Re-Exporting Past Audits
+### Re-Exporting Past Audits and Page Runs
 Past audits are stored with their full results. In the Audit History table on the dashboard, click **Export** on any row to regenerate the CSV.
+
+Page-level run history (in the content workspace Accessibility tab) also includes **Export** and **CSV** actions per history row.
 
 ## WCAG Checks Included (37 checks)
 
@@ -131,17 +134,25 @@ Past audits are stored with their full results. In the Audit History table on th
 
 ### Licence
 
-By default, all features are enabled with no configuration required (community mode). To use a licence key for domain-locked or expiring licences, add it to your `appsettings.json`:
+By default, the package runs in **Free** mode with visual checks enabled. You can override licence metadata and feature state via `appsettings.json`:
 
 ```json
 {
   "AccessibilityToolkit": {
-    "LicenceKey": "your-licence-key-here"
+    "Licensing": {
+      "LicenseType": "Free",
+      "Status": "Active",
+      "Domain": "*",
+      "ExpiresAt": null
+    },
+    "VisualChecks": {
+      "Enabled": true
+    }
   }
 }
 ```
 
-Licence status is shown on the **Settings** tab of the Accessibility Toolkit dashboard.
+`GetFeatures` returns `licenseType`, `status`, `expiresAt`, and `isProEnabled` for UI/runtime gating.
 
 ### Audit Exclusions
 
@@ -159,6 +170,7 @@ All endpoints are under `/umbraco/AccessibilityToolkit/Accessibility/` and requi
 |--------|----------|-------------|
 | GET | `Check?nodeKey={guid}&level=AA` | Run accessibility check on a single page |
 | GET | `GetHistory?nodeKey={guid}` | Get scan history for a specific page |
+| POST | `UpdateResult?id={int}` | Update an existing page result (used after client visual merge) |
 | GET | `GetRecentHistory?count=20` | Get recent page-level scans |
 | DELETE | `DeleteHistory?id={int}` | Delete a scan history entry |
 | POST | `RunAudit?nodeKey={guid}&level=AA` | Run audit on a node and all descendants |
@@ -179,3 +191,7 @@ All endpoints are under `/umbraco/AccessibilityToolkit/Accessibility/` and requi
 
 To report an issue or suggest a feature, please use the GitHub issue tracker:
 https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/issues
+
+
+
+

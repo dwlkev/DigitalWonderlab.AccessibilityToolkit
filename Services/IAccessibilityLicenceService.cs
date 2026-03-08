@@ -8,6 +8,7 @@ public interface IAccessibilityLicenceService
 
 public class LicenceInfo
 {
+    public string LicenseType { get; set; } = "Free";
     public string Status { get; set; } = string.Empty;
     public string Domain { get; set; } = string.Empty;
     public bool IsProEnabled { get; set; }

@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "../../umbraco-package-schema.json",
   "name": "AccessibilityToolkit",
   "version": "1.0.0",
@@ -7,7 +7,7 @@
       "type": "workspaceView",
       "alias": "accessibilityToolkitWorkspaceView",
       "name": "Accessibility",
-      "js": "/App_Plugins/AccessibilityToolkit/accessibility-toolkit.js",
+      "js": "/App_Plugins/AccessibilityToolkit/accessibility-toolkit.v1103.js?v=1106",
       "elementName": "accessibility-toolkit-view",
       "weight": -10,
       "meta": {
@@ -26,7 +26,7 @@
       "type": "dashboard",
       "alias": "accessibilityToolkitDashboard",
       "name": "Accessibility Toolkit",
-      "js": "/App_Plugins/AccessibilityToolkit/accessibility-dashboard.js",
+      "js": "/App_Plugins/AccessibilityToolkit/accessibility-dashboard.v1103.js?v=1106",
       "elementName": "accessibility-toolkit-dashboard",
       "weight": 10,
       "meta": {
@@ -42,3 +42,4 @@
     }
   ]
 }
+

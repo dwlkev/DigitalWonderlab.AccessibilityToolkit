@@ -4,11 +4,15 @@ An Umbraco backoffice package that adds an **Accessibility** tab to every conten
 
 ## Features
 - Workspace view tab on every content page
-- 9 WCAG checks covering structure, images, forms, links, language, ARIA, semantics, tables, and viewport
+- 37 WCAG checks across Level A, AA, and AAA
 - Score gauge (0-100) with impact breakdown
 - Categorised issues table with expandable details
-- CSV export for offline review
+- CSV and report export options
+- Page-level run history with per-run export actions
 - WCAG level selection (A, AA, AAA)
+- Content dashboard with Recent Reports, Site Audit, FAQ, Help & Services, and Settings
+- Site audits across a selected content subtree with saved audit history and re-export
+- Browser-based visual contrast checks with inline preview snippets and graceful fallback
 
 ## Compatibility
 - Umbraco 17+

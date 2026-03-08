@@ -14,7 +14,7 @@ This is a **library project** that gets packed as a NuGet package and consumed b
 - **Analyzer**: `Services/AccessibilityAnalyzer.cs` / `IAccessibilityAnalyzer` — fetches page HTML via `HttpClient`, passes it through all registered `IAccessibilityCheck` implementations, returns an `AccessibilityResult`.
 - **Checks**: `Checks/` — 37 classes implementing `IAccessibilityCheck`. Each receives parsed HTML (HtmlAgilityPack) and returns issues. Checks are registered in the composer and run at the WCAG level the user selects (A, AA, or AAA).
 - **Result Store**: `Services/AccessibilityResultStore.cs` / `IAccessibilityResultStore` — CRUD for two DB tables using NPoco with raw `new Sql(...)` queries (NOT generic `From<T>()`).
-- **Licence Service**: `Services/AccessibilityLicenceService.cs` / `IAccessibilityLicenceService` — reads `AccessibilityToolkit:VisualChecks:Enabled` from `IConfiguration`. Currently a simple bool flag; will become licence key validation later.
+- **Licence Service**: `Services/AccessibilityLicenceService.cs` / `IAccessibilityLicenceService` - config-driven licence metadata + feature gating via `AccessibilityToolkit:Licensing:*` and `AccessibilityToolkit:VisualChecks:Enabled`.
 - **Migrations**: `Migrations/` — `MigrationBase` subclasses creating `dwAccessibilityResults` and `dwAccessibilityAudits` tables. Chained in `RunAccessibilityMigration.cs`.
 - **Composer**: `Startup/AccessibilityToolkitComposer.cs` — registers all services, checks, and the migration handler.
 
@@ -22,8 +22,8 @@ This is a **library project** that gets packed as a NuGet package and consumed b
 
 Vanilla web components with Shadow DOM. No build step, no framework. Files live in `App_Plugins/AccessibilityToolkit/` and are packed into the NuGet package as content.
 
-- **`accessibility-toolkit.js`** — Workspace view (Accessibility tab on each content node). Score gauge, issues table, scan history, visual checks preview.
-- **`accessibility-dashboard.js`** — Dashboard in the Content section. Recent reports, audit history, site audit form.
+- **`accessibility-toolkit.v1103.js`** — Workspace view (Accessibility tab on each content node). Score gauge, issues table, scan history, visual checks preview.
+- **`accessibility-dashboard.v1103.js`** — Dashboard in the Content section. Recent reports, site audit, FAQ, help/services, settings.
 - **`accessibility-dashboard-template.html`** — HTML template loaded by the dashboard JS.
 - **`accessibility-toolkit-style.css`** — Shared styles for both views.
 - **`umbraco-package.json`** — Registers the workspace view and dashboard with Umbraco.
@@ -63,13 +63,14 @@ All under `/umbraco/AccessibilityToolkit/Accessibility/`, backoffice auth requir
 |---|---|---|
 | GET | `Check?nodeKey={guid}&level=AA` | Scan a single page |
 | GET | `GetHistory?nodeKey={guid}` | Page scan history |
+| POST | `UpdateResult?id={int}` | Persist client-merged visual check results |
 | GET | `GetRecentHistory?count=20` | Recent scans across all pages |
 | DELETE | `DeleteHistory?id={int}` | Delete a scan record |
 | POST | `RunAudit?nodeKey={guid}&level=AA` | Audit node + all descendants |
 | GET | `GetRecentAudits?count=20` | Recent audit summaries |
 | GET | `ExportAudit?id={int}` | Full audit JSON for CSV re-export |
 | DELETE | `DeleteAudit?id={int}` | Delete an audit record |
-| GET | `GetFeatures` | Feature flags (visualChecks bool) |
+| GET | `GetFeatures` | Feature flags + licence metadata (`licenseType`, `status`, `expiresAt`) |
 
 ## Development & Testing Workflow
 
@@ -78,11 +79,10 @@ The test environment is a separate Umbraco site at `C:\Users\KevinTriggle\source
 **After every code change, the full deploy cycle must be completed:**
 
 1. Bump `<Version>` in the csproj
-2. `dotnet pack -c Release -o bin/Release`
-3. Clear NuGet cache: `rm -rf C:/Users/KevinTriggle/.nuget/packages/digitalwonderlab.accessibilitytoolkit`
-4. Update version in `dwl-baseline/src/UmbracoProject/UmbracoProject.csproj`
-5. `dotnet restore && dotnet build` on the baseline
-6. Verify App_Plugins deployed and build has 0 errors
+2. Run `reinstall-test-sites.sh` (packs, reinstalls package, clears old App_Plugins, restores)
+3. Build the baseline site (`dotnet build ...UmbracoProject.csproj`) to materialize `App_Plugins/AccessibilityToolkit`
+4. Verify package version in baseline `.csproj`, then verify updated plugin files in baseline `App_Plugins`
+5. Restart baseline site process before UI verification
 
 Never use project references. Always NuGet package. This ensures the packaging and content deployment works correctly.
 
@@ -94,12 +94,12 @@ Never use project references. Always NuGet package. This ensures the packaging a
 - **Deprecated APIs**: `MigrationBase`, `UmbracoApiController`, and `Upgrader.Execute` are all deprecated in v17 (removal in v18). Acceptable for now.
 - **DLL locking**: If Visual Studio / IIS Express is running the baseline, the toolkit DLL will be locked. User must stop debugging before rebuilding.
 
-## Planned Features (Not Yet Implemented)
+## Feature Status
 
-- **Visual checks**: Client-side axe-core injection into an iframe to catch computed style issues (color contrast, target sizes, focus indicators, reflow, text spacing). Will use the browser the editor is already in rather than server-side Playwright.
-- **Licence key validation**: Replace the config-based bool with proper licence key checking for premium features.
-- **Page exclusions**: Allow users to exclude specific pages from audits.
+- **Visual checks**: Implemented client-side via hidden iframe for computed contrast checks, with canvas-based preview snippets and fallback states.
+- **Page exclusions**: Implemented in dashboard Settings (document type + specific page exclusions).
+- **Licence model**: Currently config/feature-flag based in runtime service; licensing roadmap remains in planning docs.
 
 ## Current Version
 
-**1.3.2**
+**1.10.6**

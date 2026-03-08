@@ -8,6 +8,7 @@ public interface IAccessibilityResultStore
     IEnumerable<AccessibilityResultDto> GetRecentResults(int count);
     AccessibilityResultDto? GetResultById(int id);
     void SaveResult(AccessibilityResultDto dto);
+    void UpdateResult(AccessibilityResultDto dto);
     void DeleteResult(int id);
 
     void SaveAudit(AccessibilityAuditDto dto);

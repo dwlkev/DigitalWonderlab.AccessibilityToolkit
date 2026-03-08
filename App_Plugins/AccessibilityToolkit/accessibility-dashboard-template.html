@@ -17,6 +17,8 @@
     <uui-tab-group>
         <uui-tab label="recent-scans" active>Recent Scans</uui-tab>
         <uui-tab label="site-audit">Site Audit</uui-tab>
+        <uui-tab label="faq">FAQ</uui-tab>
+        <uui-tab label="help-services">Help &amp; Services</uui-tab>
         <uui-tab label="settings">Settings</uui-tab>
     </uui-tab-group>
 
@@ -69,7 +71,6 @@
                     <div class="a11y-node-picker">
                         <uui-button label="Pick Content Node" id="a11y-audit-pick-btn" look="outline"></uui-button>
                         <span id="a11y-audit-node-display" class="a11y-node-display">No node selected</span>
-                        <input type="text" id="a11y-audit-nodekey" placeholder="or paste GUID..." class="a11y-dashboard-input a11y-node-fallback" />
                     </div>
                 </div>
                 <div class="a11y-control-group">
@@ -80,10 +81,6 @@
                         <option value="AAA">Level AAA</option>
                     </select>
                 </div>
-                <label class="a11y-visual-check-label" style="display:flex;align-items:center;gap:6px;font-size:0.9em;">
-                    <input type="checkbox" id="a11y-audit-visual-checks" checked />
-                    Include visual checks
-                </label>
                 <uui-button label="Run Audit" id="a11y-audit-btn" look="primary" color="positive"></uui-button>
             </div>
 
@@ -155,12 +152,75 @@
         </uui-box>
     </div>
 
+    <div id="a11y-tab-faq" class="a11y-tab-content" style="display:none;">
+        <uui-box headline="Frequently Asked Questions">
+            <div class="a11y-faq-list">
+                <div class="a11y-faq-item">
+                    <h4>What do visual checks currently cover?</h4>
+                    <p>Visual checks currently focus on computed color contrast issues. They complement server-side HTML checks.</p>
+                </div>
+                <div class="a11y-faq-item">
+                    <h4>Why might screenshot previews be missing?</h4>
+                    <p>Some pages block capture due to browser security constraints (for example cross-origin assets). The report still includes selectors and contrast details.</p>
+                </div>
+                <div class="a11y-faq-item">
+                    <h4>How does licensing work?</h4>
+                    <p>Core functionality is Free Forever. Pro features are currently enabled as an Early Adopter trial.</p>
+                </div>
+                <div class="a11y-faq-item">
+                    <h4>Does this guarantee WCAG AA compliance?</h4>
+                    <p>
+                        This toolkit helps you work toward WCAG AA, but automated scans are not fully exhaustive and do not replace expert review.
+                        If you need deeper coverage, visit the <a href="#" id="a11y-faq-help-link">Help &amp; Services</a> tab.
+                    </p>
+                </div>
+                <div class="a11y-faq-item">
+                    <h4>How can I report issues or request features?</h4>
+                    <p>
+                        Use the GitHub issues tracker:
+                        <a href="https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/issues" target="_blank" rel="noopener">Accessibility Toolkit Issues</a>
+                    </p>
+                </div>
+            </div>
+        </uui-box>
+    </div>
+
+    <div id="a11y-tab-help-services" class="a11y-tab-content" style="display:none;">
+        <uui-box headline="Manual Accessibility Audit & Fix Support">
+            <p>
+                Need deeper coverage than automated checks? Our team can run a comprehensive manual audit,
+                prioritize remediation, and help your team ship compliant fixes faster.
+            </p>
+            <div class="a11y-services-list">
+                <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> WCAG manual audits with evidence-backed findings</div>
+                <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Prioritized remediation roadmap tailored to your team</div>
+                <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Hands-on implementation support and follow-up verification</div>
+                <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Faster progress toward stronger compliance confidence</div>
+            </div>
+            <div class="a11y-services-inline-actions">
+                <uui-button label="Book Expert Audit" id="a11y-services-tab-btn" look="primary" color="default"></uui-button>
+            </div>
+        </uui-box>
+    </div>
+
     <div id="a11y-tab-settings" class="a11y-tab-content" style="display:none;">
         <uui-box headline="Audit Exclusions">
             <div id="a11y-settings-loading" class="a11y-loading" style="display:none;">
                 <span class="a11y-spinner"></span> Loading settings...
             </div>
             <div id="a11y-settings-body" style="display:none;">
+                <div class="a11y-settings-section">
+                    <h4>License</h4>
+                    <p class="a11y-settings-desc">Core tools are Free Forever. Pro features can be controlled by license settings.</p>
+                    <div id="a11y-license-panel" class="a11y-license-panel">
+                        <div class="a11y-license-row"><span>License Type</span><strong id="a11y-license-type">-</strong></div>
+                        <div class="a11y-license-row"><span>Status</span><strong id="a11y-license-status">-</strong></div>
+                        <div class="a11y-license-row"><span>Pro Enabled</span><strong id="a11y-license-pro">-</strong></div>
+                        <div class="a11y-license-row"><span>Expires</span><strong id="a11y-license-expires">-</strong></div>
+                        <div class="a11y-license-row"><span>Domain</span><strong id="a11y-license-domain">-</strong></div>
+                    </div>
+                    <div id="a11y-license-error" class="a11y-license-error" style="display:none;"></div>
+                </div>
                 <div class="a11y-settings-section">
                     <h4>Excluded Document Types</h4>
                     <p class="a11y-settings-desc">Tick the document types you want to exclude from audits. Pages using these types will be skipped.</p>
@@ -186,5 +246,5 @@
         </uui-box>
     </div>
 
-    <div class="a11y-copy">Created with care by <a href="https://digitalwonderlab.com" target="_blank">Digital Wonderlab</a></div>
+    <div class="a11y-copy">Created with 💗 by <a href="https://digitalwonderlab.com" target="_blank">Digital Wonderlab</a></div>
 </div>
