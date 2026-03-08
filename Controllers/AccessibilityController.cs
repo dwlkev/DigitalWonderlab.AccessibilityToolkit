@@ -250,6 +250,16 @@ public class AccessibilityController : UmbracoApiController
         return Ok(new { resultJson = audit.ResultJson });
     }
 
+    [HttpGet]
+    public IActionResult ExportResult(int id)
+    {
+        var result = _resultStore.GetResultById(id);
+        if (result == null)
+            return NotFound(new { error = "Result not found." });
+
+        return Ok(new { resultJson = result.ResultJson });
+    }
+
     [HttpDelete]
     public IActionResult DeleteAudit(int id)
     {
@@ -339,7 +349,16 @@ public class AccessibilityController : UmbracoApiController
     [HttpGet]
     public IActionResult GetFeatures()
     {
-        return Ok(new { visualChecks = _licenceService.IsVisualChecksEnabled() });
+        var info = _licenceService.GetLicenceInfo();
+        return Ok(new
+        {
+            visualChecks = info.IsProEnabled,
+            status = info.Status,
+            domain = info.Domain,
+            isProEnabled = info.IsProEnabled,
+            expiresAt = info.ExpiresAt,
+            validationError = info.ValidationError
+        });
     }
 
     [HttpGet]

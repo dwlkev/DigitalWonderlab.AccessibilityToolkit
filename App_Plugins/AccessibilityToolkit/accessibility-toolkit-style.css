@@ -752,95 +752,6 @@
     margin-bottom: 15px;
 }
 
-/* Premium locked state */
-.a11y-premium-locked {
-    position: relative;
-    padding: 5px;
-}
-
-.a11y-premium-locked::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(255, 255, 255, 0.4);
-    border-radius: 6px;
-    pointer-events: none;
-    z-index: 1;
-}
-
-.a11y-premium-locked > * {
-    position: relative;
-    z-index: 2;
-}
-
-.a11y-premium-badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 4px;
-    font-size: 0.75em;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    background: linear-gradient(135deg, #7c3aed, #6366f1);
-    color: white;
-    margin-bottom: 10px;
-}
-
-.a11y-premium-features {
-    margin: 12px 0;
-    padding-left: 20px;
-    font-size: 0.9em;
-    color: #555;
-    line-height: 1.8;
-}
-
-.a11y-premium-features li {
-    margin-bottom: 2px;
-}
-
-.a11y-premium-cta {
-    display: inline-block;
-    padding: 8px 20px;
-    border-radius: 6px;
-    font-size: 0.9em;
-    font-weight: 700;
-    text-decoration: none;
-    background: linear-gradient(135deg, #7c3aed, #6366f1);
-    color: white;
-    transition: opacity 0.2s;
-    position: relative;
-    z-index: 3;
-}
-
-.a11y-premium-cta:hover {
-    opacity: 0.9;
-    text-decoration: none;
-}
-
-/* Visual checks unlocked */
-.a11y-visual-checks-unlocked p {
-    color: #666;
-    margin: 4px 0 0 0;
-    font-size: 0.9em;
-}
-
-/* PRO indicator badge (inline next to heading) */
-.a11y-pro-indicator {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.45em;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    background: linear-gradient(135deg, #7c3aed, #6366f1);
-    color: white;
-    vertical-align: middle;
-    margin-left: 8px;
-    position: relative;
-    top: -2px;
-}
-
 /* Color swatch for visual check results */
 .a11y-color-swatch {
     display: inline-block;
@@ -1030,49 +941,29 @@ uui-tab-group {
     font-weight: 700;
 }
 
-/* Licence badge */
-.a11y-licence-active,
-.a11y-licence-inactive {
-    display: flex;
-    align-items: center;
-    gap: 14px;
+/* Inline sparkline in audit history rows */
+.a11y-audit-sparkline-cell {
+    min-width: 100px;
+    padding: 4px 8px !important;
 }
 
-.a11y-licence-active strong,
-.a11y-licence-inactive strong {
-    display: block;
-    font-size: 1em;
-    margin-bottom: 2px;
+/* History view report button */
+.a11y-history-view-btn {
+    background: none;
+    border: 1px solid #2563eb;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 10px;
+    font-size: 0.8em;
+    color: #2563eb;
+    font-weight: 600;
+    transition: background 0.2s, color 0.2s;
+    margin-right: 4px;
 }
 
-.a11y-licence-active p,
-.a11y-licence-inactive p {
-    font-size: 0.9em;
-    color: #666;
-    margin: 0;
-}
-
-.a11y-licence-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-size: 0.85em;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    flex-shrink: 0;
-}
-
-.a11y-licence-pro {
-    background: linear-gradient(135deg, #16a34a, #22c55e);
+.a11y-history-view-btn:hover {
+    background: #2563eb;
     color: white;
-}
-
-.a11y-licence-free {
-    background: #e5e7eb;
-    color: #555;
 }
 
 /* Audit report button */
@@ -1109,18 +1000,45 @@ uui-tab-group {
     margin: 0 0 8px 0;
 }
 
+.a11y-doctype-filter {
+    margin-bottom: 6px;
+    width: 100%;
+    max-width: 300px;
+}
+
 .a11y-doctype-list {
-    max-height: 200px;
+    max-height: 300px;
     overflow-y: auto;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
-    padding: 6px;
+    padding: 8px;
     background: #fafafa;
 }
 
-uui-checkbox {
-    display: block;
-    padding: 2px 4px;
+.a11y-doctype-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.a11y-doctype-label:hover {
+    background: #f0f0f0;
+}
+
+.a11y-doctype-label.a11y-doctype-checked {
+    background: #eff6ff;
+}
+
+.a11y-doctype-label input[type="checkbox"] {
+    accent-color: #2563eb;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
 }
 
 .a11y-excluded-pages-list {
@@ -1168,6 +1086,34 @@ uui-checkbox {
     color: #16a34a;
     font-weight: 600;
     margin-left: 10px;
+}
+
+/* Issue group headers (Content / Code / Design) */
+.a11y-group-header-row td {
+    background: #f3f4f6 !important;
+    padding: 8px 12px !important;
+    border-bottom: 2px solid #e5e7eb !important;
+    font-size: 0.9em;
+}
+
+.a11y-group-icon {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+
+.a11y-group-icon-content { background: #2563eb; }
+.a11y-group-icon-code { background: #7c3aed; }
+.a11y-group-icon-design { background: #d97706; }
+
+.a11y-group-count {
+    font-weight: 400;
+    color: #888;
+    font-size: 0.9em;
+    margin-left: 6px;
 }
 
 /* Responsive */

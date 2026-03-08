@@ -27,6 +27,13 @@ public class AccessibilityResultStore : IAccessibilityResultStore
             new Sql("SELECT * FROM dwAccessibilityResults ORDER BY ScannedAt DESC OFFSET 0 ROWS FETCH NEXT @0 ROWS ONLY", count));
     }
 
+    public AccessibilityResultDto? GetResultById(int id)
+    {
+        using var scope = _scopeProvider.CreateScope(autoComplete: true);
+        return scope.Database.FirstOrDefault<AccessibilityResultDto>(
+            new Sql("SELECT * FROM dwAccessibilityResults WHERE Id = @0", id));
+    }
+
     public void SaveResult(AccessibilityResultDto dto)
     {
         using var scope = _scopeProvider.CreateScope();

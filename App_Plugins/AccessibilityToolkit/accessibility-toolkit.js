@@ -11,8 +11,6 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     #level = "AA";
     #pageHistory = [];
     #visualChecksEnabled = false;
-    #visualIframe = null;
-    #visualIframeUrl = null;
 
     constructor() {
         super();
@@ -54,68 +52,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             if (!response.ok) return;
             const data = await response.json();
             this.#visualChecksEnabled = data.visualChecks === true;
-            if (this.#visualChecksEnabled) this.#renderProBadge();
-            this.#renderVisualChecksSection();
         } catch {
             // Silently ignore — defaults to locked
-        }
-    }
-
-    #renderVisualChecksSection() {
-        const box = this.shadowRoot.getElementById("a11y-visual-checks-box");
-        if (!box) return;
-
-        box.style.display = "block";
-
-        const content = this.shadowRoot.getElementById("a11y-visual-checks-content");
-        if (!content) return;
-
-        if (this.#visualChecksEnabled) {
-            content.innerHTML = `
-                <div class="a11y-visual-checks-unlocked">
-                    <div class="a11y-dashboard-section-header">
-                        <h3>Visual Checks</h3>
-                    </div>
-                    <p>Run browser-based accessibility checks that analyse computed styles and color contrast in the published page.</p>
-                    <div style="margin-top: 12px;">
-                        <uui-button label="Run Visual Scan" id="a11y-visual-scan-btn" look="primary" color="positive"></uui-button>
-                    </div>
-                    <div id="a11y-visual-loading" class="a11y-loading" style="display:none;">
-                        <span class="a11y-spinner"></span> Running visual checks...
-                    </div>
-                    <div id="a11y-visual-error" class="a11y-error" style="display:none;"></div>
-                    <div id="a11y-visual-results"></div>
-                    <div id="a11y-visual-preview-panel" class="a11y-visual-preview-panel" style="display:none;">
-                        <div class="a11y-visual-preview-header">
-                            <h4>Page Preview</h4>
-                            <button id="a11y-close-preview-btn" class="a11y-show-on-page-btn">Close Preview</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-            const scanBtn = content.querySelector("#a11y-visual-scan-btn");
-            scanBtn?.addEventListener("click", () => this.#runVisualCheck());
-            const closeBtn = content.querySelector("#a11y-close-preview-btn");
-            closeBtn?.addEventListener("click", () => this.#closePreviewPanel());
-        } else {
-            content.innerHTML = `
-                <div class="a11y-premium-locked">
-                    <div class="a11y-premium-badge">PRO</div>
-                    <div class="a11y-dashboard-section-header">
-                        <h3>Visual Accessibility Checks</h3>
-                    </div>
-                    <p>Go beyond HTML analysis. Visual checks render your page in a real browser to catch issues that static analysis cannot.</p>
-                    <ul class="a11y-premium-features">
-                        <li>Color contrast (computed styles, alpha blending, gradients)</li>
-                        <li>Touch/click target size (actual rendered bounding boxes)</li>
-                        <li>Focus indicator visibility (triggered focus states)</li>
-                        <li>Text reflow at 320px viewport width</li>
-                        <li>Text spacing tolerance (clipping detection)</li>
-                        <li>Z-index / visibility stacking issues</li>
-                    </ul>
-                    <a href="#" class="a11y-premium-cta" id="a11y-premium-cta-btn">Learn More</a>
-                </div>
-            `;
         }
     }
 
@@ -144,7 +82,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             </uui-box>
 
             <div id="a11y-loading" class="a11y-loading" style="display:none;">
-                <span class="a11y-spinner"></span> Analysing page accessibility...
+                <span class="a11y-spinner"></span> <span class="a11y-loading-text">Analysing page accessibility...</span>
             </div>
 
             <div id="a11y-error" class="a11y-error" style="display:none;"></div>
@@ -240,10 +178,6 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                 </div>
             </uui-box>
 
-            <uui-box id="a11y-visual-checks-box" class="a11y-visual-checks-box" style="display:none;">
-                <div id="a11y-visual-checks-content"></div>
-            </uui-box>
-
             <div class="a11y-copy">Created with care by <a href="https://digitalwonderlab.com" target="_blank">Digital Wonderlab</a></div>
         `;
 
@@ -279,7 +213,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             return;
         }
 
-        this.#showLoading(true);
+        this.#showLoading(true, "Analysing HTML...");
         this.#hideError();
         this.shadowRoot.getElementById("a11y-results").style.display = "none";
 
@@ -294,6 +228,21 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             }
 
             this.#result = await response.json();
+
+            // Run visual checks if enabled
+            if (this.#visualChecksEnabled && this.#result.url) {
+                this.#showLoading(true, "Running visual checks...");
+                try {
+                    const visualIssues = await this.#runVisualChecksOnPage(this.#result.url);
+                    if (visualIssues.length > 0) {
+                        this.#mergeVisualIssues(visualIssues);
+                    }
+                } catch (vErr) {
+                    console.warn("Visual checks failed, continuing with HTML results only", vErr);
+                }
+            }
+
+            this.#showLoading(true, "Complete");
             this.#renderResults();
 
             this.#notificationContext?.peek("positive", {
@@ -314,6 +263,83 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         } finally {
             this.#showLoading(false);
         }
+    }
+
+    /** Run visual contrast checks via iframe */
+    async #runVisualChecksOnPage(url) {
+        return new Promise((resolve, reject) => {
+            const iframe = document.createElement("iframe");
+            iframe.style.cssText = "position:fixed;left:-10000px;top:-10000px;width:1280px;height:900px;border:none;opacity:0;pointer-events:none;";
+            iframe.setAttribute("sandbox", "allow-same-origin");
+
+            const timeout = setTimeout(() => {
+                iframe.remove();
+                reject(new Error("Visual check timed out after 15 seconds."));
+            }, 15000);
+
+            iframe.addEventListener("load", async () => {
+                clearTimeout(timeout);
+                try {
+                    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                    if (!doc || !doc.body) {
+                        iframe.remove();
+                        resolve([]);
+                        return;
+                    }
+
+                    const issues = this.#analyzeContrastInDocument(doc);
+                    iframe.remove();
+                    resolve(issues);
+                } catch (err) {
+                    iframe.remove();
+                    if (err.name === "SecurityError") {
+                        resolve([]);
+                    } else {
+                        reject(err);
+                    }
+                }
+            });
+
+            iframe.addEventListener("error", () => {
+                clearTimeout(timeout);
+                iframe.remove();
+                resolve([]);
+            });
+
+            iframe.src = url;
+            document.body.appendChild(iframe);
+        });
+    }
+
+    /** Merge visual issues into the main result */
+    #mergeVisualIssues(visualIssues) {
+        const result = this.#result;
+        if (!result) return;
+
+        for (const vi of visualIssues) {
+            vi.source = "visual";
+            result.issues.push(vi);
+        }
+
+        // Recalculate counts
+        result.totalIssues = result.issues.length;
+        result.criticalCount = result.issues.filter(i => i.impact === "critical").length;
+        result.seriousCount = result.issues.filter(i => i.impact === "serious").length;
+        result.moderateCount = result.issues.filter(i => i.impact === "moderate").length;
+        result.minorCount = result.issues.filter(i => i.impact === "minor").length;
+
+        // Update categorySummary
+        for (const vi of visualIssues) {
+            const cat = vi.category || "Color";
+            result.categorySummary[cat] = (result.categorySummary[cat] || 0) + 1;
+        }
+
+        // Recalculate score (deduct points for visual issues)
+        const totalDeduction = visualIssues.reduce((sum, i) => {
+            const weights = { critical: 5, serious: 3, moderate: 2, minor: 1 };
+            return sum + (weights[i.impact] || 1);
+        }, 0);
+        result.score = Math.max(0, result.score - totalDeduction);
     }
 
     // --- Page History ---
@@ -367,8 +393,14 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                 <td><span class="a11y-dashboard-score ${scoreClass}">${entry.overallScore}</span></td>
                 <td>${this.#escapeHtml(entry.wcagLevel)}</td>
                 <td>${entry.totalIssues}</td>
-                <td><button class="a11y-dashboard-delete-btn" data-id="${entry.id}" title="Delete">&times;</button></td>
+                <td>
+                    <button class="a11y-history-view-btn" data-id="${entry.id}" title="View Report">Report</button>
+                    <button class="a11y-dashboard-delete-btn" data-id="${entry.id}" title="Delete">&times;</button>
+                </td>
             `;
+
+            const viewBtn = tr.querySelector(".a11y-history-view-btn");
+            viewBtn?.addEventListener("click", () => this.#viewHistoryReport(entry.id, entry.wcagLevel));
 
             const deleteBtn = tr.querySelector(".a11y-dashboard-delete-btn");
             deleteBtn?.addEventListener("click", () => this.#deleteHistoryEntry(entry.id));
@@ -386,6 +418,28 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         } catch (err) {
             this.#notificationContext?.peek("danger", {
                 data: { headline: "Delete failed", message: err.message },
+            });
+        }
+    }
+
+    async #viewHistoryReport(id, wcagLevel) {
+        try {
+            const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/ExportResult?id=${id}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const savedResult = JSON.parse(data.resultJson);
+
+            // Temporarily swap result and level, open report, then restore
+            const prevResult = this.#result;
+            const prevLevel = this.#level;
+            this.#result = savedResult;
+            this.#level = wcagLevel || "AA";
+            this.#openPageReport();
+            this.#result = prevResult;
+            this.#level = prevLevel;
+        } catch (err) {
+            this.#notificationContext?.peek("danger", {
+                data: { headline: "Report failed", message: err.message },
             });
         }
     }
@@ -439,6 +493,30 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         this.#renderIssuesTable();
     }
 
+    static #ISSUE_GROUP_MAP = {
+        // Content
+        "image-alt-text": "Content", "link-text": "Content", "link-purpose-full": "Content",
+        "heading-hierarchy": "Content", "page-title": "Content", "lang-attribute": "Content",
+        "language-of-parts": "Content", "abbreviations": "Content", "reading-level": "Content",
+        "section-headings": "Content", "target-blank": "Content",
+        // Code
+        "aria-attributes": "Code", "semantic-html": "Code", "form-labels": "Code",
+        "form-grouping": "Code", "table-structure": "Code", "duplicate-ids": "Code",
+        "interactive-elements": "Code", "meta-viewport": "Code", "iframe-title": "Code",
+        "list-structure": "Code", "bypass-blocks": "Code", "tabindex": "Code",
+        "keyboard-events": "Code", "label-in-name": "Code", "autocomplete": "Code",
+        "media": "Code", "media-alternative": "Code", "error-identification": "Code",
+        "status-messages": "Code", "text-spacing": "Code", "reflow": "Code",
+        "input-purpose": "Code", "focus-not-restricted": "Code",
+        // Design
+        "color-contrast": "Design", "enhanced-contrast": "Design", "target-size": "Design",
+        "visual-color-contrast": "Design", "visual-color-contrast-enhanced": "Design"
+    };
+
+    #getIssueGroup(ruleId) {
+        return AccessibilityToolkitView.#ISSUE_GROUP_MAP[ruleId] || "Code";
+    }
+
     #groupIssues(issues) {
         const groups = new Map();
         for (const issue of issues) {
@@ -485,71 +563,94 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         table.style.display = "";
         noIssues.style.display = "none";
 
-        grouped.forEach((group, idx) => {
-            const countBadge = group.count > 1
-                ? ` <span class="a11y-count-badge">${group.count}x</span>`
-                : "";
+        // Split into Content / Code / Design groups
+        const groupOrder = ["Content", "Code", "Design"];
+        const byGroup = { Content: [], Code: [], Design: [] };
+        for (const g of grouped) {
+            const grp = this.#getIssueGroup(g.ruleId);
+            (byGroup[grp] || byGroup.Code).push(g);
+        }
 
-            const tr = document.createElement("tr");
-            tr.classList.add("a11y-issue-row");
-            tr.innerHTML = `
-                <td><span class="a11y-badge a11y-badge-${this.#escapeHtml(group.impact)}">${this.#escapeHtml(group.impact)}</span>${countBadge}</td>
-                <td>${this.#escapeHtml(group.category)}</td>
-                <td class="a11y-desc-cell">${this.#escapeHtml(group.description)}</td>
-                <td>${group.wcagUrl ? `<a href="${this.#escapeHtml(group.wcagUrl)}" target="_blank" rel="noopener" title="WCAG guidance" class="a11y-wcag-link"><code>${this.#escapeHtml(group.wcagCriterion)}</code></a>` : `<code>${this.#escapeHtml(group.wcagCriterion)}</code>`}</td>
-                <td><button class="a11y-expand-btn" data-idx="${idx}" title="Show details">&#9660;</button></td>
-            `;
+        let idx = 0;
+        for (const groupName of groupOrder) {
+            const items = byGroup[groupName];
+            if (items.length === 0) continue;
 
-            const detailTr = document.createElement("tr");
-            detailTr.classList.add("a11y-detail-row");
-            detailTr.style.display = "none";
+            // Group header row
+            const headerTr = document.createElement("tr");
+            headerTr.className = "a11y-group-header-row";
+            const issueCount = items.reduce((s, g) => s + g.count, 0);
+            headerTr.innerHTML = `<td colspan="5"><span class="a11y-group-icon a11y-group-icon-${groupName.toLowerCase()}"></span> <strong>${groupName}</strong> <span class="a11y-group-count">${issueCount} issue${issueCount === 1 ? "" : "s"}</span></td>`;
+            tbody.appendChild(headerTr);
 
-            let instancesHtml = "";
-            if (group.count > 1) {
-                const maxShow = 5;
-                const shown = group.instances.slice(0, maxShow);
-                instancesHtml = `
-                    <div class="a11y-detail-field">
-                        <strong>Instances (${group.count}):</strong>
-                        <div class="a11y-instances-list">
-                            ${shown.map((inst, i) => `
-                                <div class="a11y-instance">
-                                    <span class="a11y-instance-num">${i + 1}.</span>
-                                    ${inst.element ? `<code>${this.#escapeHtml(inst.element)}</code>` : `<code>${this.#escapeHtml(inst.selector)}</code>`}
-                                </div>
-                            `).join("")}
-                            ${group.count > maxShow ? `<div class="a11y-instance-more">...and ${group.count - maxShow} more</div>` : ""}
-                        </div>
-                    </div>
+            for (const group of items) {
+                const countBadge = group.count > 1
+                    ? ` <span class="a11y-count-badge">${group.count}x</span>`
+                    : "";
+
+                const tr = document.createElement("tr");
+                tr.classList.add("a11y-issue-row");
+                tr.innerHTML = `
+                    <td><span class="a11y-badge a11y-badge-${this.#escapeHtml(group.impact)}">${this.#escapeHtml(group.impact)}</span>${countBadge}</td>
+                    <td>${this.#escapeHtml(group.category)}</td>
+                    <td class="a11y-desc-cell">${this.#escapeHtml(group.description)}</td>
+                    <td>${group.wcagUrl ? `<a href="${this.#escapeHtml(group.wcagUrl)}" target="_blank" rel="noopener" title="WCAG guidance" class="a11y-wcag-link"><code>${this.#escapeHtml(group.wcagCriterion)}</code></a>` : `<code>${this.#escapeHtml(group.wcagCriterion)}</code>`}</td>
+                    <td><button class="a11y-expand-btn" data-idx="${idx}" title="Show details">&#9660;</button></td>
                 `;
-            } else {
-                instancesHtml = group.element
-                    ? `<div class="a11y-detail-field"><strong>Element:</strong> <code>${this.#escapeHtml(group.element)}</code></div>`
-                    : "";
-                instancesHtml += group.selector
-                    ? `<div class="a11y-detail-field"><strong>Selector:</strong> <code>${this.#escapeHtml(group.selector)}</code></div>`
-                    : "";
+
+                const detailTr = document.createElement("tr");
+                detailTr.classList.add("a11y-detail-row");
+                detailTr.style.display = "none";
+
+                let instancesHtml = "";
+                if (group.count > 1) {
+                    const maxShow = 5;
+                    const shown = group.instances.slice(0, maxShow);
+                    instancesHtml = `
+                        <div class="a11y-detail-field">
+                            <strong>Instances (${group.count}):</strong>
+                            <div class="a11y-instances-list">
+                                ${shown.map((inst, i) => `
+                                    <div class="a11y-instance">
+                                        <span class="a11y-instance-num">${i + 1}.</span>
+                                        ${inst.element ? `<code>${this.#escapeHtml(inst.element)}</code>` : `<code>${this.#escapeHtml(inst.selector)}</code>`}
+                                    </div>
+                                `).join("")}
+                                ${group.count > maxShow ? `<div class="a11y-instance-more">...and ${group.count - maxShow} more</div>` : ""}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    instancesHtml = group.element
+                        ? `<div class="a11y-detail-field"><strong>Element:</strong> <code>${this.#escapeHtml(group.element)}</code></div>`
+                        : "";
+                    instancesHtml += group.selector
+                        ? `<div class="a11y-detail-field"><strong>Selector:</strong> <code>${this.#escapeHtml(group.selector)}</code></div>`
+                        : "";
+                }
+
+                detailTr.innerHTML = `
+                    <td colspan="5">
+                        <div class="a11y-detail">
+                            ${instancesHtml}
+                            <div class="a11y-detail-field"><strong>Recommendation:</strong> ${this.#escapeHtml(group.recommendation)}</div>
+                            <div class="a11y-detail-field"><strong>Rule:</strong> ${this.#escapeHtml(group.ruleId)} &middot; <strong>Level:</strong> ${this.#escapeHtml(group.level)} &middot; <strong>WCAG:</strong> ${group.wcagUrl ? `<a href="${this.#escapeHtml(group.wcagUrl)}" target="_blank" rel="noopener" class="a11y-wcag-link">${this.#escapeHtml(group.wcagCriterion)}</a>` : this.#escapeHtml(group.wcagCriterion)}</div>
+                        </div>
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+                tbody.appendChild(detailTr);
+
+                tr.querySelector(".a11y-expand-btn").addEventListener("click", () => {
+                    const isVisible = detailTr.style.display !== "none";
+                    detailTr.style.display = isVisible ? "none" : "";
+                    tr.querySelector(".a11y-expand-btn").innerHTML = isVisible ? "&#9660;" : "&#9650;";
+                });
+
+                idx++;
             }
-
-            detailTr.innerHTML = `
-                <td colspan="5">
-                    <div class="a11y-detail">
-                        ${instancesHtml}
-                        <div class="a11y-detail-field"><strong>Recommendation:</strong> ${this.#escapeHtml(group.recommendation)}</div>
-                        <div class="a11y-detail-field"><strong>Rule:</strong> ${this.#escapeHtml(group.ruleId)} &middot; <strong>Level:</strong> ${this.#escapeHtml(group.level)} &middot; <strong>WCAG:</strong> ${group.wcagUrl ? `<a href="${this.#escapeHtml(group.wcagUrl)}" target="_blank" rel="noopener" class="a11y-wcag-link">${this.#escapeHtml(group.wcagCriterion)}</a>` : this.#escapeHtml(group.wcagCriterion)}</div>
-                    </div>
-                </td>
-            `;
-
-            tbody.appendChild(tr);
-            tbody.appendChild(detailTr);
-
-            tr.querySelector(".a11y-expand-btn").addEventListener("click", () => {
-                const isVisible = detailTr.style.display !== "none";
-                detailTr.style.display = isVisible ? "none" : "";
-                tr.querySelector(".a11y-expand-btn").innerHTML = isVisible ? "&#9660;" : "&#9650;";
-            });
-        });
+        }
     }
 
     #sortBy(field) {
@@ -606,117 +707,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         URL.revokeObjectURL(url);
     }
 
-    // --- PRO badge ---
-
-    #renderProBadge() {
-        const h2 = this.shadowRoot.querySelector(".a11y-header-text h2");
-        if (!h2 || h2.querySelector(".a11y-pro-indicator")) return;
-        const badge = document.createElement("span");
-        badge.className = "a11y-pro-indicator";
-        badge.textContent = "PRO";
-        h2.appendChild(badge);
-    }
-
-    // --- Visual checks ---
-
-    async #resolvePageUrl() {
-        // 1. Current check result
-        if (this.#result?.url) return this.#result.url;
-        // 2. Most recent scan history
-        if (this.#pageHistory?.length > 0 && this.#pageHistory[0].url) return this.#pageHistory[0].url;
-        // 3. Ask the server to resolve it
-        if (!this.#nodeKey) return null;
-        const resp = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/GetPageUrl?nodeKey=${this.#nodeKey}`);
-        if (!resp.ok) return null;
-        const data = await resp.json();
-        return data.url || null;
-    }
-
-    async #runVisualCheck() {
-        const btn = this.shadowRoot.getElementById("a11y-visual-scan-btn");
-        const loading = this.shadowRoot.getElementById("a11y-visual-loading");
-        const errorEl = this.shadowRoot.getElementById("a11y-visual-error");
-        const resultsEl = this.shadowRoot.getElementById("a11y-visual-results");
-
-        btn.disabled = true;
-        loading.style.display = "flex";
-        errorEl.style.display = "none";
-        resultsEl.innerHTML = "";
-
-        try {
-            const pageUrl = await this.#resolvePageUrl();
-            if (!pageUrl) {
-                throw new Error("Could not resolve a published URL for this page. Ensure the page is published and has a valid hostname configured.");
-            }
-
-            const issues = await this.#runContrastCheckInIframe(pageUrl);
-            this.#renderVisualResults(issues);
-
-            const summary = issues.length === 0
-                ? "No color contrast issues found."
-                : `Found ${issues.length} color contrast issue(s).`;
-            this.#notificationContext?.peek(issues.length === 0 ? "positive" : "warning", {
-                data: { headline: "Visual check complete", message: summary },
-            });
-        } catch (error) {
-            console.error("Visual check failed", error);
-            errorEl.textContent = error.message;
-            errorEl.style.display = "block";
-            this.#notificationContext?.peek("danger", {
-                data: { headline: "Visual check failed", message: error.message },
-            });
-        } finally {
-            btn.disabled = false;
-            loading.style.display = "none";
-        }
-    }
-
-    #runContrastCheckInIframe(url) {
-        return new Promise((resolve, reject) => {
-            // Clean up previous iframe
-            this.#cleanupVisualIframe();
-
-            const iframe = document.createElement("iframe");
-            iframe.style.cssText = "position:fixed;left:-10000px;top:-10000px;width:1280px;height:900px;border:none;opacity:0;pointer-events:none;";
-            iframe.setAttribute("sandbox", "allow-same-origin");
-
-            const timeout = setTimeout(() => {
-                this.#cleanupVisualIframe();
-                reject(new Error("Visual check timed out after 15 seconds. The page may be too slow to load."));
-            }, 15000);
-
-            iframe.addEventListener("load", () => {
-                clearTimeout(timeout);
-                try {
-                    const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                    if (!doc || !doc.body) {
-                        throw new Error("Could not access page content. The page may block framing (X-Frame-Options/CSP).");
-                    }
-                    const issues = this.#analyzeContrastInDocument(doc);
-                    // Keep iframe alive for "Show on Page"
-                    this.#visualIframe = iframe;
-                    this.#visualIframeUrl = url;
-                    resolve(issues);
-                } catch (err) {
-                    this.#cleanupVisualIframe();
-                    if (err.name === "SecurityError") {
-                        reject(new Error("Cannot access page — it is on a different origin or blocks framing. Ensure the published site is on the same origin as the backoffice."));
-                    } else {
-                        reject(err);
-                    }
-                }
-            });
-
-            iframe.addEventListener("error", () => {
-                clearTimeout(timeout);
-                this.#cleanupVisualIframe();
-                reject(new Error("Failed to load the page in an iframe. Check the page URL is accessible."));
-            });
-
-            iframe.src = url;
-            document.body.appendChild(iframe);
-        });
-    }
+    // --- Visual contrast analysis ---
 
     #analyzeContrastInDocument(doc) {
         const issues = [];
@@ -878,202 +869,6 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         return `#${hex(color.r)}${hex(color.g)}${hex(color.b)}`;
     }
 
-    #renderVisualResults(issues) {
-        const container = this.shadowRoot.getElementById("a11y-visual-results");
-        if (!container) return;
-
-        if (issues.length === 0) {
-            container.innerHTML = `<div class="a11y-no-issues" style="margin-top:12px;">No color contrast issues found. Great work!</div>`;
-            return;
-        }
-
-        // Separate AA failures from AAA-only
-        const aaIssues = issues.filter(i => i.level === "AA");
-        const aaaIssues = issues.filter(i => i.level === "AAA");
-
-        let html = `<div style="margin-top:15px;">`;
-
-        // Impact summary
-        const critical = issues.filter(i => i.impact === "critical").length;
-        const serious = issues.filter(i => i.impact === "serious").length;
-        const moderate = issues.filter(i => i.impact === "moderate").length;
-        const minor = issues.filter(i => i.impact === "minor").length;
-
-        html += `<div class="a11y-impact-summary" style="margin-bottom:12px;">`;
-        if (critical) html += `<div class="a11y-impact-badge a11y-impact-critical"><span>${critical}</span> Critical</div>`;
-        if (serious) html += `<div class="a11y-impact-badge a11y-impact-serious"><span>${serious}</span> Serious</div>`;
-        if (moderate) html += `<div class="a11y-impact-badge a11y-impact-moderate"><span>${moderate}</span> Moderate</div>`;
-        if (minor) html += `<div class="a11y-impact-badge a11y-impact-minor"><span>${minor}</span> Minor</div>`;
-        html += `</div>`;
-
-        if (aaIssues.length > 0) {
-            html += `<h3 style="margin:12px 0 8px;">AA Failures (${aaIssues.length})</h3>`;
-            html += this.#buildVisualIssuesTable(aaIssues);
-        }
-
-        if (aaaIssues.length > 0) {
-            html += `<h3 style="margin:16px 0 8px;">AAA Enhanced (${aaaIssues.length})</h3>`;
-            html += this.#buildVisualIssuesTable(aaaIssues);
-        }
-
-        html += `</div>`;
-        container.innerHTML = html;
-
-        // Bind expand buttons
-        container.querySelectorAll(".a11y-expand-btn").forEach((btn) => {
-            btn.addEventListener("click", () => {
-                const detailRow = btn.closest("tr").nextElementSibling;
-                if (detailRow) {
-                    const isVisible = detailRow.style.display !== "none";
-                    detailRow.style.display = isVisible ? "none" : "";
-                    btn.innerHTML = isVisible ? "&#9660;" : "&#9650;";
-                }
-            });
-        });
-
-        // Bind "Show" buttons
-        container.querySelectorAll(".a11y-show-on-page-btn").forEach((btn) => {
-            btn.addEventListener("click", () => {
-                const selector = btn.dataset.selector;
-                if (selector) this.#showElementOnPage(selector);
-            });
-        });
-    }
-
-    #buildVisualIssuesTable(issues) {
-        let html = `<div class="a11y-table-wrapper"><table class="a11y-table"><thead><tr>
-            <th>Impact</th>
-            <th>Preview</th>
-            <th>Ratio</th>
-            <th>Colors</th>
-            <th>Description</th>
-            <th></th>
-            <th></th>
-        </tr></thead><tbody>`;
-
-        for (const issue of issues) {
-            const fgHex = this.#rgbToHex(issue.fgColor);
-            const bgHex = this.#rgbToHex(issue.bgColor);
-            const swatchUrl = this.#generateContrastSwatch(issue.fgColor, issue.bgColor, issue.contrastRatio);
-
-            html += `<tr class="a11y-issue-row">
-                <td><span class="a11y-badge a11y-badge-${this.#escapeHtml(issue.impact)}">${this.#escapeHtml(issue.impact)}</span></td>
-                <td><img src="${swatchUrl}" class="a11y-contrast-swatch" alt="Contrast preview" /></td>
-                <td><strong>${issue.contrastRatio.toFixed(2)}:1</strong></td>
-                <td>
-                    <span class="a11y-color-labels">
-                        <span class="a11y-color-swatch" style="background:${fgHex};" title="Foreground: ${fgHex}"></span>
-                        ${fgHex}
-                        &rarr;
-                        <span class="a11y-color-swatch" style="background:${bgHex};" title="Background: ${bgHex}"></span>
-                        ${bgHex}
-                    </span>
-                </td>
-                <td class="a11y-desc-cell">${this.#escapeHtml(issue.description)}</td>
-                <td>${issue.selector ? `<button class="a11y-show-on-page-btn" data-selector="${this.#escapeHtml(issue.selector)}" title="Show element on page">Show</button>` : ""}</td>
-                <td><button class="a11y-expand-btn" title="Show details">&#9660;</button></td>
-            </tr>`;
-
-            html += `<tr class="a11y-detail-row" style="display:none;">
-                <td colspan="7">
-                    <div class="a11y-detail">
-                        ${issue.element ? `<div class="a11y-detail-field"><strong>Element:</strong> <code>${this.#escapeHtml(issue.element)}</code></div>` : ""}
-                        ${issue.selector ? `<div class="a11y-detail-field"><strong>Selector:</strong> <code>${this.#escapeHtml(issue.selector)}</code></div>` : ""}
-                        <div class="a11y-detail-field"><strong>Recommendation:</strong> ${this.#escapeHtml(issue.recommendation)}</div>
-                        <div class="a11y-detail-field"><strong>WCAG:</strong> <a href="${this.#escapeHtml(issue.wcagUrl)}" target="_blank" rel="noopener" class="a11y-wcag-link">${this.#escapeHtml(issue.wcagCriterion)}</a></div>
-                    </div>
-                </td>
-            </tr>`;
-        }
-
-        html += `</tbody></table></div>`;
-        return html;
-    }
-
-    disconnectedCallback() {
-        this.#cleanupVisualIframe();
-        if (super.disconnectedCallback) super.disconnectedCallback();
-    }
-
-    #cleanupVisualIframe() {
-        if (this.#visualIframe && this.#visualIframe.parentNode) {
-            this.#visualIframe.parentNode.removeChild(this.#visualIframe);
-        }
-        this.#visualIframe = null;
-        this.#visualIframeUrl = null;
-    }
-
-    #generateContrastSwatch(fgColor, bgColor, ratio) {
-        const canvas = document.createElement("canvas");
-        canvas.width = 120;
-        canvas.height = 40;
-        const ctx = canvas.getContext("2d");
-        const bgHex = this.#rgbToHex(bgColor);
-        const fgHex = this.#rgbToHex(fgColor);
-        ctx.fillStyle = bgHex;
-        ctx.fillRect(0, 0, 120, 40);
-        ctx.fillStyle = fgHex;
-        ctx.font = "bold 16px sans-serif";
-        ctx.fillText("Aa Bb Cc", 6, 24);
-        ctx.font = "10px sans-serif";
-        ctx.fillStyle = fgHex;
-        ctx.fillText(`${ratio.toFixed(1)}:1`, 6, 36);
-        return canvas.toDataURL("image/png");
-    }
-
-    #showElementOnPage(selector) {
-        const panel = this.shadowRoot.getElementById("a11y-visual-preview-panel");
-        if (!panel || !this.#visualIframeUrl) return;
-
-        panel.style.display = "block";
-
-        // Remove any existing preview iframe
-        const existing = panel.querySelector("iframe");
-        if (existing) existing.remove();
-
-        // Create a fresh preview iframe (separate from the scan iframe)
-        const previewIframe = document.createElement("iframe");
-        previewIframe.style.cssText = "width:100%;height:500px;border:1px solid #e5e7eb;border-radius:6px;";
-        previewIframe.src = this.#visualIframeUrl;
-
-        previewIframe.addEventListener("load", () => {
-            try {
-                const doc = previewIframe.contentDocument || previewIframe.contentWindow?.document;
-                if (!doc) return;
-
-                // Inject highlight style
-                const style = doc.createElement("style");
-                style.id = "a11y-highlight-style";
-                style.textContent = `
-                    @keyframes a11y-pulse { 0%,100% { box-shadow: 0 0 0 3px rgba(239,68,68,0.7); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0.3); } }
-                    .a11y-highlight-overlay { outline: 3px solid #ef4444 !important; outline-offset: 2px; animation: a11y-pulse 1.5s ease-in-out infinite; position: relative; z-index: 99999; }
-                `;
-                doc.head.appendChild(style);
-
-                const target = doc.querySelector(selector);
-                if (target) {
-                    target.classList.add("a11y-highlight-overlay");
-                    target.scrollIntoView({ behavior: "smooth", block: "center" });
-                }
-            } catch {
-                // Cross-origin or other access error
-            }
-        });
-
-        panel.appendChild(previewIframe);
-    }
-
-    #closePreviewPanel() {
-        const panel = this.shadowRoot.getElementById("a11y-visual-preview-panel");
-        if (!panel) return;
-
-        panel.style.display = "none";
-
-        // Remove the preview iframe (scan iframe stays offscreen in document.body)
-        const iframe = panel.querySelector("iframe");
-        if (iframe) iframe.remove();
-    }
-
     // --- Sparkline ---
 
     #renderPageSparkline() {
@@ -1216,39 +1011,51 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             bodyHtml += `</div>`;
         }
 
-        // Issues table
+        // Issues table — grouped by Content / Code / Design
         if (result.issues.length > 0) {
             const impactOrder = ["critical", "serious", "moderate", "minor"];
-            const sortedIssues = [...result.issues].sort((a, b) =>
-                (impactOrder.indexOf(a.impact) ?? 4) - (impactOrder.indexOf(b.impact) ?? 4)
-            );
+            const groupOrder = ["Content", "Code", "Design"];
+            const groupColors = { Content: "#2563eb", Code: "#7c3aed", Design: "#d97706" };
+            const byGroup = { Content: [], Code: [], Design: [] };
 
-            bodyHtml += `
-                <h2>Issues (${result.issues.length})</h2>
-                <table class="report-table report-issues-table">
-                    <thead>
-                        <tr>
-                            <th style="width:70px">Impact</th>
-                            <th style="width:60px">WCAG</th>
-                            <th>Description</th>
-                            <th style="width:35%">Element &amp; Context</th>
-                            <th>Recommendation</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${sortedIssues.map(i => {
-                            const elementHtml = this.#buildElementPreview(i);
-                            return `<tr>
-                                <td><span class="report-badge-${esc(i.impact)}">${esc(i.impact)}</span></td>
-                                <td>${i.wcagCriterion ? `<code>${esc(i.wcagCriterion)}</code>` : ""}</td>
-                                <td>${esc(i.description)}</td>
-                                <td class="report-element-cell">${elementHtml}</td>
-                                <td class="report-recommendation">${esc(i.recommendation)}</td>
-                            </tr>`;
-                        }).join("")}
-                    </tbody>
-                </table>
-            `;
+            for (const issue of result.issues) {
+                const grp = this.#getIssueGroup(issue.ruleId);
+                (byGroup[grp] || byGroup.Code).push(issue);
+            }
+
+            for (const groupName of groupOrder) {
+                const items = byGroup[groupName];
+                if (items.length === 0) continue;
+
+                items.sort((a, b) => (impactOrder.indexOf(a.impact) ?? 4) - (impactOrder.indexOf(b.impact) ?? 4));
+
+                bodyHtml += `
+                    <h2 style="border-bottom-color:${groupColors[groupName]};">${groupName} Issues (${items.length})</h2>
+                    <table class="report-table report-issues-table">
+                        <thead>
+                            <tr>
+                                <th style="width:70px">Impact</th>
+                                <th style="width:60px">WCAG</th>
+                                <th>Description</th>
+                                <th style="width:35%">Element &amp; Context</th>
+                                <th>Recommendation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(i => {
+                                const elementHtml = this.#buildElementPreview(i);
+                                return `<tr>
+                                    <td><span class="report-badge-${esc(i.impact)}">${esc(i.impact)}</span></td>
+                                    <td>${i.wcagCriterion ? `<code>${esc(i.wcagCriterion)}</code>` : ""}</td>
+                                    <td>${esc(i.description)}</td>
+                                    <td class="report-element-cell">${elementHtml}</td>
+                                    <td class="report-recommendation">${esc(i.recommendation)}</td>
+                                </tr>`;
+                            }).join("")}
+                        </tbody>
+                    </table>
+                `;
+            }
         } else {
             bodyHtml += `<p style="color:#16a34a;font-weight:600;text-align:center;padding:20px;">No accessibility issues found. Great work!</p>`;
         }
@@ -1265,18 +1072,30 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             html += `<div class="report-selector"><code>${esc(issue.selector)}</code></div>`;
         }
 
-        // Color contrast swatch
-        if (issue.ruleId === "color-contrast" || issue.ruleId === "enhanced-contrast") {
+        // Color contrast swatch (visual or server-side)
+        if (issue.ruleId === "color-contrast" || issue.ruleId === "enhanced-contrast" ||
+            issue.ruleId === "visual-color-contrast" || issue.ruleId === "visual-color-contrast-enhanced") {
             const ratioMatch = issue.description?.match(/([\d.]+):1/);
             const ratio = ratioMatch ? ratioMatch[1] : null;
-            const colors = this.#extractColorsFromElement(issue.element || "");
-            if (colors.fg && colors.bg) {
+
+            // Use fgColor/bgColor from visual checks if available
+            let fg = null, bg = null;
+            if (issue.fgColor && issue.bgColor) {
+                fg = this.#rgbToHex(issue.fgColor);
+                bg = this.#rgbToHex(issue.bgColor);
+            } else {
+                const colors = this.#extractColorsFromElement(issue.element || "");
+                fg = colors.fg;
+                bg = colors.bg;
+            }
+
+            if (fg && bg) {
                 html += `
                     <div class="report-contrast-preview">
-                        <span class="report-swatch" style="background:${colors.bg};color:${colors.fg};">Aa</span>
+                        <span class="report-swatch" style="background:${bg};color:${fg};">Aa</span>
                         <div class="report-contrast-info">
-                            <span>FG: <code>${esc(colors.fg)}</code></span>
-                            <span>BG: <code>${esc(colors.bg)}</code></span>
+                            <span>FG: <code>${esc(fg)}</code></span>
+                            <span>BG: <code>${esc(bg)}</code></span>
                             ${ratio ? `<span>Ratio: <strong>${ratio}:1</strong></span>` : ""}
                         </div>
                     </div>`;
@@ -1394,8 +1213,13 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         `;
     }
 
-    #showLoading(show) {
-        this.shadowRoot.getElementById("a11y-loading").style.display = show ? "flex" : "none";
+    #showLoading(show, text) {
+        const el = this.shadowRoot.getElementById("a11y-loading");
+        el.style.display = show ? "flex" : "none";
+        if (text) {
+            const textSpan = el.querySelector(".a11y-loading-text");
+            if (textSpan) textSpan.textContent = text;
+        }
     }
 
     #showError(message) {

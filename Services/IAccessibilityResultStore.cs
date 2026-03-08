@@ -6,6 +6,7 @@ public interface IAccessibilityResultStore
 {
     IEnumerable<AccessibilityResultDto> GetHistoryForNode(Guid nodeKey);
     IEnumerable<AccessibilityResultDto> GetRecentResults(int count);
+    AccessibilityResultDto? GetResultById(int id);
     void SaveResult(AccessibilityResultDto dto);
     void DeleteResult(int id);
 

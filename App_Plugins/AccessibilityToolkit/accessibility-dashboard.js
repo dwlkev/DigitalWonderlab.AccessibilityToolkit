@@ -4,6 +4,30 @@ import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import { UMB_DOCUMENT_PICKER_MODAL } from "@umbraco-cms/backoffice/document";
 
 export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLElement) {
+    static #ISSUE_GROUP_MAP = {
+        // Content
+        "image-alt-text": "Content", "link-text": "Content", "link-purpose-full": "Content",
+        "heading-hierarchy": "Content", "page-title": "Content", "lang-attribute": "Content",
+        "language-of-parts": "Content", "abbreviations": "Content", "reading-level": "Content",
+        "section-headings": "Content", "target-blank": "Content",
+        // Code
+        "aria-attributes": "Code", "semantic-html": "Code", "form-labels": "Code",
+        "form-grouping": "Code", "table-structure": "Code", "duplicate-ids": "Code",
+        "interactive-elements": "Code", "meta-viewport": "Code", "iframe-title": "Code",
+        "list-structure": "Code", "bypass-blocks": "Code", "tabindex": "Code",
+        "keyboard-events": "Code", "label-in-name": "Code", "autocomplete": "Code",
+        "media": "Code", "media-alternative": "Code", "error-identification": "Code",
+        "status-messages": "Code", "text-spacing": "Code", "reflow": "Code",
+        "input-purpose": "Code", "focus-not-restricted": "Code",
+        // Design
+        "color-contrast": "Design", "enhanced-contrast": "Design", "target-size": "Design",
+        "visual-color-contrast": "Design", "visual-color-contrast-enhanced": "Design"
+    };
+
+    #getIssueGroup(ruleId) {
+        return AccessibilityToolkitDashboard.#ISSUE_GROUP_MAP[ruleId] || "Code";
+    }
+
     #notificationContext;
     #modalManager;
     #recentResults = [];
@@ -125,44 +149,6 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         // Lazy load settings when switching to settings tab
         if (tabName === "settings" && !this.#settingsLoaded) {
             this.#loadSettings();
-            this.#loadLicenceStatus();
-        }
-    }
-
-    // --- Licence Status ---
-
-    async #loadLicenceStatus() {
-        const container = this.shadowRoot.getElementById("a11y-licence-status");
-        if (!container) return;
-
-        try {
-            const response = await fetch("/umbraco/AccessibilityToolkit/Accessibility/GetFeatures");
-            if (!response.ok) return;
-            const data = await response.json();
-
-            if (data.visualChecks === true) {
-                container.innerHTML = `
-                    <div class="a11y-licence-active">
-                        <span class="a11y-licence-badge a11y-licence-pro">PRO</span>
-                        <div>
-                            <strong>Licence Active</strong>
-                            <p>Visual checks and premium features are enabled.</p>
-                        </div>
-                    </div>
-                `;
-            } else {
-                container.innerHTML = `
-                    <div class="a11y-licence-inactive">
-                        <span class="a11y-licence-badge a11y-licence-free">FREE</span>
-                        <div>
-                            <strong>Community Edition</strong>
-                            <p>Place your licence file at <code>umbraco/Licenses/DigitalWonderlab.AccessibilityToolkit.lic</code> to enable PRO features.</p>
-                        </div>
-                    </div>
-                `;
-            }
-        } catch {
-            container.innerHTML = `<p class="a11y-settings-desc">Could not load licence status.</p>`;
         }
     }
 
@@ -204,7 +190,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         }
     }
 
-    #renderDocTypeList() {
+    #renderDocTypeList(filterText = "") {
         const container = this.shadowRoot.getElementById("a11y-doctype-list");
         container.innerHTML = "";
 
@@ -213,21 +199,55 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             return;
         }
 
-        for (const dt of this.#allDocumentTypes) {
-            const checkbox = document.createElement("uui-checkbox");
-            checkbox.setAttribute("label", `${dt.name} (${dt.alias})`);
-            checkbox.checked = this.#excludedDocTypes.includes(dt.alias);
+        // Wire up filter input (only once)
+        const filterInput = this.shadowRoot.getElementById("a11y-doctype-filter");
+        if (filterInput && !filterInput.dataset.bound) {
+            filterInput.dataset.bound = "1";
+            filterInput.addEventListener("input", () => this.#renderDocTypeList(filterInput.value));
+        }
+
+        const filter = filterText.toLowerCase();
+
+        // Show excluded (checked) items first, then unchecked, both filtered
+        const sorted = [...this.#allDocumentTypes].sort((a, b) => {
+            const aExcl = this.#excludedDocTypes.includes(a.alias) ? 0 : 1;
+            const bExcl = this.#excludedDocTypes.includes(b.alias) ? 0 : 1;
+            if (aExcl !== bExcl) return aExcl - bExcl;
+            return a.name.localeCompare(b.name);
+        });
+
+        let visibleCount = 0;
+        for (const dt of sorted) {
+            const labelText = `${dt.name} (${dt.alias})`;
+            if (filter && !labelText.toLowerCase().includes(filter)) continue;
+            visibleCount++;
+
+            const isChecked = this.#excludedDocTypes.includes(dt.alias);
+            const label = document.createElement("label");
+            label.className = "a11y-doctype-label" + (isChecked ? " a11y-doctype-checked" : "");
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = isChecked;
             checkbox.addEventListener("change", () => {
                 if (checkbox.checked) {
                     if (!this.#excludedDocTypes.includes(dt.alias)) {
                         this.#excludedDocTypes.push(dt.alias);
                     }
+                    label.classList.add("a11y-doctype-checked");
                 } else {
                     this.#excludedDocTypes = this.#excludedDocTypes.filter(a => a !== dt.alias);
+                    label.classList.remove("a11y-doctype-checked");
                 }
             });
 
-            container.appendChild(checkbox);
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(" " + labelText));
+            container.appendChild(label);
+        }
+
+        if (visibleCount === 0 && filter) {
+            container.innerHTML = `<p class="a11y-settings-desc" style="margin:0;">No document types match "${this.#escapeHtml(filter)}".</p>`;
         }
     }
 
@@ -547,16 +567,19 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         if (this.#auditHistory.length === 0) {
             table.style.display = "none";
             empty.style.display = "block";
-            const sparkContainer = this.shadowRoot.getElementById("a11y-audit-sparkline-container");
-            if (sparkContainer) sparkContainer.style.display = "none";
             return;
         }
 
         table.style.display = "";
         empty.style.display = "none";
 
-        // Render sparkline
-        this.#renderAuditSparkline();
+        // Group audits by rootNodeKey for per-scope sparklines
+        const byScope = {};
+        for (const audit of this.#auditHistory) {
+            const key = audit.rootNodeKey;
+            if (!byScope[key]) byScope[key] = [];
+            byScope[key].push(audit);
+        }
 
         for (const audit of this.#auditHistory) {
             const tr = document.createElement("tr");
@@ -573,6 +596,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                 <td>${this.#escapeHtml(audit.wcagLevel)}</td>
                 <td>${audit.totalPages}</td>
                 <td><span class="a11y-dashboard-score ${scoreClass}">${audit.averageScore}</span></td>
+                <td class="a11y-audit-sparkline-cell"></td>
                 <td>${audit.totalIssues}</td>
                 <td class="a11y-audit-history-actions">
                     <button class="a11y-audit-history-report-btn" data-id="${audit.id}" title="Print Report">Report</button>
@@ -580,6 +604,16 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     <button class="a11y-dashboard-delete-btn" data-id="${audit.id}" title="Delete">&times;</button>
                 </td>
             `;
+
+            // Render inline sparkline for this scope
+            const scopeAudits = byScope[audit.rootNodeKey] || [];
+            const sparkCell = tr.querySelector(".a11y-audit-sparkline-cell");
+            if (sparkCell && scopeAudits.length >= 2) {
+                const dataPoints = [...scopeAudits]
+                    .reverse()
+                    .map(a => ({ score: a.averageScore, date: a.scannedAt }));
+                this.#renderSparkline(sparkCell, dataPoints, { width: 80, height: 24 });
+            }
 
             const reportBtn = tr.querySelector(".a11y-audit-history-report-btn");
             reportBtn?.addEventListener("click", () => this.#openAuditReport(audit.id));
@@ -592,37 +626,6 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
 
             tbody.appendChild(tr);
         }
-    }
-
-    #renderAuditSparkline() {
-        const container = this.shadowRoot.getElementById("a11y-audit-sparkline");
-        const labels = this.shadowRoot.getElementById("a11y-audit-sparkline-labels");
-        const wrapper = this.shadowRoot.getElementById("a11y-audit-sparkline-container");
-
-        if (!container || !labels || !wrapper) return;
-
-        // Reverse so oldest is first
-        const dataPoints = [...this.#auditHistory]
-            .reverse()
-            .map(a => ({ score: a.averageScore, date: a.scannedAt }));
-
-        if (dataPoints.length < 2) {
-            wrapper.style.display = "none";
-            return;
-        }
-
-        wrapper.style.display = "flex";
-        this.#renderSparkline(container, dataPoints, { width: 300, height: 50 });
-
-        const scores = dataPoints.map(d => d.score);
-        const current = scores[scores.length - 1];
-        const best = Math.max(...scores);
-        const worst = Math.min(...scores);
-        labels.innerHTML = `
-            <span><strong>Current:</strong> ${current}</span>
-            <span><strong>Best:</strong> ${best}</span>
-            <span><strong>Worst:</strong> ${worst}</span>
-        `;
     }
 
     async #exportAuditFromHistory(id) {
@@ -701,6 +704,8 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         progressLog.innerHTML = "";
 
         const level = levelSelect?.value || "AA";
+        const includeVisual = this.shadowRoot.getElementById("a11y-audit-visual-checks")?.checked ?? true;
+        const visualEnabled = includeVisual && await this.#checkVisualEnabled();
 
         try {
             // Step 1: Discover pages
@@ -749,7 +754,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     }
 
                     const result = await checkResp.json();
-                    results.push({
+                    const pageResult = {
                         nodeKey: page.nodeKey,
                         name: page.name,
                         url: result.url || page.url,
@@ -761,11 +766,22 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                         minorCount: result.minorCount || 0,
                         issues: result.issues || [],
                         categorySummary: result.categorySummary || {}
-                    });
-                    totalScore += result.score;
-                    totalIssues += result.totalIssues;
+                    };
+
+                    // Run visual checks if enabled
+                    if (visualEnabled && pageResult.url) {
+                        progressText.textContent = `Visual checks for page ${i + 1}: ${page.name}...`;
+                        try {
+                            const visualIssues = await this.#runVisualChecksOnPage(pageResult.url);
+                            this.#mergeVisualIssuesIntoResult(pageResult, visualIssues);
+                        } catch { /* continue without visual */ }
+                    }
+
+                    results.push(pageResult);
+                    totalScore += pageResult.score;
+                    totalIssues += pageResult.totalIssues;
                     scannedCount++;
-                    this.#appendProgressLog(progressLog, page.name, result.score, result.totalIssues, null);
+                    this.#appendProgressLog(progressLog, page.name, pageResult.score, pageResult.totalIssues, null);
                 } catch (err) {
                     this.#appendProgressLog(progressLog, page.name, null, null, err.message);
                     results.push({ nodeKey: page.nodeKey, url: page.url, score: -1, totalIssues: -1 });
@@ -976,16 +992,20 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     // --- Audit Print Report ---
 
     async #openAuditReport(id) {
+        // Open popup immediately with loading state
+        const audit = this.#auditHistory.find(a => a.id === id);
+        const rootName = audit?.rootNodeName || "Site";
+        const win = this.#openReportWindow(`Accessibility Audit Report - ${rootName}`);
+        if (!win) return;
+
         try {
             const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/ExportAudit?id=${id}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
             const data = JSON.parse(result.resultJson);
 
-            const audit = this.#auditHistory.find(a => a.id === id);
             const date = audit ? new Date(audit.scannedAt).toLocaleDateString() : new Date().toLocaleDateString();
             const level = audit?.wcagLevel || "AA";
-            const rootName = audit?.rootNodeName || "Site";
 
             const hasIssueDetail = data.pages?.some(p => p.issues && p.issues.length > 0);
             const esc = (s) => this.#escapeHtml(s);
@@ -1094,6 +1114,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                         <thead>
                             <tr>
                                 <th>Impact</th>
+                                <th>Group</th>
                                 <th>WCAG</th>
                                 <th>Issue</th>
                                 <th>Occurrences</th>
@@ -1104,6 +1125,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                         <tbody>
                             ${topIssues.map(i => `<tr>
                                 <td><span class="report-badge-${esc(i.impact)}">${esc(i.impact)}</span></td>
+                                <td><span class="report-group-badge report-group-${this.#getIssueGroup(i.ruleId).toLowerCase()}">${this.#getIssueGroup(i.ruleId)}</span></td>
                                 <td>${i.wcagCriterion ? `<code>${esc(i.wcagCriterion)}</code>` : ""}</td>
                                 <td>${esc(i.description)}</td>
                                 <td class="report-center">${i.count}</td>
@@ -1171,65 +1193,70 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                             </div>
                     `;
 
-                    // Group issues by impact for this page
+                    // Group issues by Content / Code / Design
                     const impactOrder = ["critical", "serious", "moderate", "minor"];
-                    const sortedIssues = [...p.issues].sort((a, b) => {
-                        return (impactOrder.indexOf(a.impact) ?? 4) - (impactOrder.indexOf(b.impact) ?? 4);
-                    });
+                    const groupOrder = ["Content", "Code", "Design"];
+                    const groupColors = { Content: "#2563eb", Code: "#7c3aed", Design: "#d97706" };
+                    const byGroup = { Content: [], Code: [], Design: [] };
 
-                    bodyHtml += `
-                        <table class="report-table report-issues-table">
-                            <thead>
-                                <tr>
-                                    <th style="width:70px">Impact</th>
-                                    <th style="width:60px">WCAG</th>
-                                    <th>Description</th>
-                                    <th style="width:35%">Element &amp; Context</th>
-                                    <th>Recommendation</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                    `;
-
-                    for (const issue of sortedIssues) {
-                        const elementHtml = this.#buildElementPreview(issue);
-                        bodyHtml += `
-                            <tr>
-                                <td><span class="report-badge-${esc(issue.impact)}">${esc(issue.impact)}</span></td>
-                                <td>${issue.wcagCriterion ? `<code>${esc(issue.wcagCriterion)}</code>` : ""}</td>
-                                <td>${esc(issue.description)}</td>
-                                <td class="report-element-cell">${elementHtml}</td>
-                                <td class="report-recommendation">${esc(issue.recommendation)}</td>
-                            </tr>
-                        `;
+                    for (const issue of p.issues) {
+                        const grp = this.#getIssueGroup(issue.ruleId);
+                        (byGroup[grp] || byGroup.Code).push(issue);
                     }
 
-                    bodyHtml += `</tbody></table></div>`;
+                    for (const groupName of groupOrder) {
+                        const items = byGroup[groupName];
+                        if (items.length === 0) continue;
+
+                        items.sort((a, b) => (impactOrder.indexOf(a.impact) ?? 4) - (impactOrder.indexOf(b.impact) ?? 4));
+
+                        bodyHtml += `
+                            <h3 style="color:${groupColors[groupName]};margin:12px 0 6px;">${groupName} Issues (${items.length})</h3>
+                            <table class="report-table report-issues-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width:70px">Impact</th>
+                                        <th style="width:60px">WCAG</th>
+                                        <th>Description</th>
+                                        <th style="width:35%">Element &amp; Context</th>
+                                        <th>Recommendation</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+
+                        for (const issue of items) {
+                            const elementHtml = this.#buildElementPreview(issue);
+                            bodyHtml += `
+                                <tr>
+                                    <td><span class="report-badge-${esc(issue.impact)}">${esc(issue.impact)}</span></td>
+                                    <td>${issue.wcagCriterion ? `<code>${esc(issue.wcagCriterion)}</code>` : ""}</td>
+                                    <td>${esc(issue.description)}</td>
+                                    <td class="report-element-cell">${elementHtml}</td>
+                                    <td class="report-recommendation">${esc(issue.recommendation)}</td>
+                                </tr>
+                            `;
+                        }
+
+                        bodyHtml += `</tbody></table>`;
+                    }
+
+                    bodyHtml += `</div>`;
                 }
 
-                // --- Screenshot capture section ---
-                bodyHtml += `
-                    <div class="report-screenshot-section" id="screenshot-section">
-                        <h2>Visual Context</h2>
-                        <p class="report-screenshot-desc">Capture visual screenshots of flagged elements directly from the live pages. Screenshots are embedded as images in the report — nothing is saved externally.</p>
-                        <button id="capture-screenshots-btn" class="report-capture-btn">Capture Element Screenshots</button>
-                        <div id="capture-progress" style="display:none;">
-                            <div class="report-capture-progress-bar"><div id="capture-fill" class="report-capture-fill"></div></div>
-                            <span id="capture-status">Starting...</span>
-                        </div>
-                        <div id="screenshot-results"></div>
-                    </div>
-                `;
+                // Screenshots are now inline in issue tables via issue.screenshot
             }
 
-            const reportWin = this.#openPrintReport(bodyHtml, `Accessibility Audit Report - ${rootName} - ${date}`);
-
-            // Wire up screenshot capture in the popup
-            if (reportWin && hasIssueDetail) {
-                this.#initScreenshotCapture(reportWin, sortedPages);
-            }
+            // Write content into the already-open window
+            this.#populateReportWindow(win, bodyHtml);
 
         } catch (err) {
+            if (win && !win.closed) {
+                const errDiv = win.document.getElementById("report-loading");
+                if (errDiv) {
+                    errDiv.innerHTML = `<p style="color:#dc2626;font-size:1.1em;">Failed to load report: ${this.#escapeHtml(err.message)}</p>`;
+                }
+            }
             this.#notificationContext?.peek("danger", {
                 data: { headline: "Report failed", message: err.message },
             });
@@ -1247,17 +1274,29 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         }
 
         // Color contrast swatch
-        if (issue.ruleId === "color-contrast" || issue.ruleId === "enhanced-contrast") {
+        if (issue.ruleId === "color-contrast" || issue.ruleId === "enhanced-contrast" ||
+            issue.ruleId === "visual-color-contrast" || issue.ruleId === "visual-color-contrast-enhanced") {
             const ratioMatch = issue.description?.match(/([\d.]+):1/);
             const ratio = ratioMatch ? ratioMatch[1] : null;
-            const colors = this.#extractColorsFromElement(issue.element || "");
-            if (colors.fg && colors.bg) {
+
+            // Use fgColor/bgColor from visual checks if available
+            let fg = null, bg = null;
+            if (issue.fgColor && issue.bgColor) {
+                fg = this.#rgbToHex(issue.fgColor);
+                bg = this.#rgbToHex(issue.bgColor);
+            } else {
+                const colors = this.#extractColorsFromElement(issue.element || "");
+                fg = colors.fg;
+                bg = colors.bg;
+            }
+
+            if (fg && bg) {
                 html += `
                     <div class="report-contrast-preview">
-                        <span class="report-swatch" style="background:${colors.bg};color:${colors.fg};">Aa</span>
+                        <span class="report-swatch" style="background:${bg};color:${fg};">Aa</span>
                         <div class="report-contrast-info">
-                            <span>FG: <code>${esc(colors.fg)}</code></span>
-                            <span>BG: <code>${esc(colors.bg)}</code></span>
+                            <span>FG: <code>${esc(fg)}</code></span>
+                            <span>BG: <code>${esc(bg)}</code></span>
                             ${ratio ? `<span>Ratio: <strong>${ratio}:1</strong></span>` : ""}
                         </div>
                     </div>
@@ -1294,130 +1333,6 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             fg: fgMatch ? fgMatch[1].trim() : null,
             bg: bgMatch ? bgMatch[1].trim() : null
         };
-    }
-
-    /** Initialize screenshot capture in the report popup window */
-    #initScreenshotCapture(win, pages) {
-        const btn = win.document.getElementById("capture-screenshots-btn");
-        if (!btn) return;
-
-        btn.addEventListener("click", async () => {
-            btn.disabled = true;
-            btn.textContent = "Capturing...";
-            const progressDiv = win.document.getElementById("capture-progress");
-            const fillBar = win.document.getElementById("capture-fill");
-            const statusSpan = win.document.getElementById("capture-status");
-            const resultsDiv = win.document.getElementById("screenshot-results");
-            progressDiv.style.display = "block";
-
-            // Load html2canvas from CDN
-            try {
-                await new Promise((resolve, reject) => {
-                    const script = win.document.createElement("script");
-                    script.src = "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js";
-                    script.onload = resolve;
-                    script.onerror = () => reject(new Error("Failed to load html2canvas"));
-                    win.document.head.appendChild(script);
-                });
-            } catch {
-                statusSpan.textContent = "Failed to load screenshot library. Check internet connection.";
-                btn.disabled = false;
-                btn.textContent = "Retry";
-                return;
-            }
-
-            const pagesWithIssues = pages.filter(p => p.issues && p.issues.length > 0 && p.score >= 0);
-            let captured = 0;
-            let totalCaptures = 0;
-
-            for (let pi = 0; pi < pagesWithIssues.length; pi++) {
-                const page = pagesWithIssues[pi];
-                const pct = Math.round(((pi + 1) / pagesWithIssues.length) * 100);
-                fillBar.style.width = `${pct}%`;
-                statusSpan.textContent = `Page ${pi + 1}/${pagesWithIssues.length}: ${page.name || page.url}`;
-
-                // Create hidden iframe
-                const iframe = win.document.createElement("iframe");
-                iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:1280px;height:900px;border:none;";
-                win.document.body.appendChild(iframe);
-
-                try {
-                    await new Promise((resolve, reject) => {
-                        iframe.onload = resolve;
-                        iframe.onerror = reject;
-                        iframe.src = page.url;
-                        setTimeout(reject, 15000); // 15s timeout
-                    });
-
-                    // Wait a bit for rendering
-                    await new Promise(r => setTimeout(r, 1000));
-
-                    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-                    if (!iframeDoc) { iframe.remove(); continue; }
-
-                    // Capture up to 5 unique selectors per page
-                    const selectors = [...new Set(page.issues.map(i => i.selector).filter(Boolean))].slice(0, 5);
-                    let pageHtml = "";
-
-                    for (const selector of selectors) {
-                        try {
-                            const el = iframeDoc.querySelector(selector);
-                            if (!el) continue;
-
-                            el.scrollIntoView({ block: "center" });
-                            await new Promise(r => setTimeout(r, 200));
-
-                            // Highlight the element
-                            const oldOutline = el.style.outline;
-                            const oldOutlineOffset = el.style.outlineOffset;
-                            el.style.outline = "3px solid #dc2626";
-                            el.style.outlineOffset = "2px";
-
-                            const canvas = await win.html2canvas(el, {
-                                scale: 1,
-                                useCORS: true,
-                                allowTaint: true,
-                                width: Math.min(el.scrollWidth + 20, 600),
-                                height: Math.min(el.scrollHeight + 20, 300),
-                                logging: false
-                            });
-
-                            el.style.outline = oldOutline;
-                            el.style.outlineOffset = oldOutlineOffset;
-
-                            const dataUrl = canvas.toDataURL("image/png");
-                            const matchingIssue = page.issues.find(i => i.selector === selector);
-                            pageHtml += `
-                                <div class="report-screenshot-item">
-                                    <div class="report-screenshot-meta">
-                                        <code>${this.#escapeHtml(selector)}</code>
-                                        ${matchingIssue ? `<span class="report-badge-${this.#escapeHtml(matchingIssue.impact)}">${this.#escapeHtml(matchingIssue.impact)}</span>` : ""}
-                                        <span>${this.#escapeHtml(matchingIssue?.description || "")}</span>
-                                    </div>
-                                    <img src="${dataUrl}" class="report-screenshot-img" alt="Screenshot of ${this.#escapeHtml(selector)}">
-                                </div>
-                            `;
-                            captured++;
-                            totalCaptures++;
-                        } catch { /* skip this element */ }
-                    }
-
-                    if (pageHtml) {
-                        resultsDiv.innerHTML += `
-                            <div class="report-screenshot-page">
-                                <h3>${this.#escapeHtml(page.name || page.url)}</h3>
-                                ${pageHtml}
-                            </div>
-                        `;
-                    }
-                } catch { /* skip this page */ }
-
-                iframe.remove();
-            }
-
-            statusSpan.textContent = `Done! Captured ${totalCaptures} element screenshot${totalCaptures === 1 ? "" : 's'} across ${pagesWithIssues.length} page${pagesWithIssues.length === 1 ? '' : 's'}.`;
-            btn.style.display = "none";
-        });
     }
 
     // --- Sparkline ---
@@ -1464,6 +1379,55 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     }
 
     // --- Print Report ---
+
+    /** Open a report popup immediately with a loading spinner */
+    #openReportWindow(title) {
+        const win = window.open("", "_blank");
+        if (!win) {
+            this.#notificationContext?.peek("warning", {
+                data: { headline: "Popup blocked", message: "Please allow popups for this site to view the report." },
+            });
+            return null;
+        }
+        win.document.write(`<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>${this.#escapeHtml(title)}</title>
+            <style>${this.#getReportStyles()}</style>
+        </head>
+        <body>
+            <div id="report-loading" class="report-loading-state">
+                <div class="report-loading-spinner"></div>
+                <p>Building report...</p>
+                <p class="report-loading-sub">Preparing issue details, charts, and element previews</p>
+            </div>
+            <div id="report-content" style="display:none;"></div>
+        </body>
+        </html>`);
+        win.document.close();
+        return win;
+    }
+
+    /** Replace loading spinner with actual report content */
+    #populateReportWindow(win, bodyHtml) {
+        if (!win || win.closed) return;
+        const loading = win.document.getElementById("report-loading");
+        const content = win.document.getElementById("report-content");
+        if (loading) loading.style.display = "none";
+        if (content) {
+            content.innerHTML = `
+                <div class="report-actions">
+                    <button onclick="window.print()">Print Report</button>
+                </div>
+                ${bodyHtml}
+                <div class="report-footer">
+                    Generated by Accessibility Toolkit &mdash; digitalwonderlab.com
+                </div>
+            `;
+            content.style.display = "block";
+        }
+    }
 
     #openPrintReport(bodyHtml, title) {
         const win = window.open("", "_blank");
@@ -1555,31 +1519,216 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             /* Image preview */
             .report-element-img { max-width: 120px; max-height: 80px; border: 1px solid #e5e7eb; border-radius: 4px; margin-bottom: 4px; display: block; }
 
-            /* Screenshot capture */
-            .report-screenshot-section { margin-top: 30px; page-break-before: always; }
-            .report-screenshot-desc { color: #6b7280; font-size: 0.9em; margin-bottom: 12px; }
-            .report-capture-btn { padding: 10px 24px; border: 1px solid #2563eb; border-radius: 6px; background: #2563eb; color: white; font-size: 0.9em; font-weight: 600; cursor: pointer; }
-            .report-capture-btn:hover { background: #1d4ed8; }
-            .report-capture-btn:disabled { background: #9ca3af; border-color: #9ca3af; cursor: wait; }
-            .report-capture-progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; margin: 12px 0 6px; overflow: hidden; }
-            .report-capture-fill { height: 100%; background: #2563eb; border-radius: 3px; width: 0; transition: width 0.3s; }
-            .report-screenshot-page { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
-            .report-screenshot-item { margin: 10px 0; padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; }
-            .report-screenshot-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 0.85em; flex-wrap: wrap; }
-            .report-screenshot-img { max-width: 100%; border: 1px solid #d1d5db; border-radius: 4px; }
+            .report-group-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+            .report-group-content { background: #eff6ff; color: #1d4ed8; }
+            .report-group-code { background: #f5f3ff; color: #6d28d9; }
+            .report-group-design { background: #fffbeb; color: #b45309; }
 
             .report-issues-table { page-break-inside: auto; }
             .report-issues-table tr { page-break-inside: avoid; }
             .report-footer { margin-top: 40px; text-align: center; font-size: 11px; color: #999; border-top: 1px solid #e5e7eb; padding-top: 12px; }
             code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; word-break: break-all; }
+
+            /* Loading state */
+            .report-loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; color: #6b7280; }
+            .report-loading-state p { margin: 12px 0 0; font-size: 1.1em; font-weight: 600; }
+            .report-loading-sub { font-size: 0.85em !important; font-weight: 400 !important; color: #9ca3af; }
+            .report-loading-spinner { width: 40px; height: 40px; border: 4px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; animation: report-spin 0.8s linear infinite; }
+            @keyframes report-spin { to { transform: rotate(360deg); } }
+
             @media print {
-                .report-actions, .report-screenshot-section { display: none !important; }
-                .report-capture-btn { display: none !important; }
+                .report-actions { display: none !important; }
                 body { padding: 0; margin: 0; }
                 .report-page-section { page-break-before: always; }
                 .report-footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; color: #999; }
             }
         `;
+    }
+
+    // --- Visual Checks for Audits ---
+
+    #visualChecksEnabled = null;
+
+    async #checkVisualEnabled() {
+        if (this.#visualChecksEnabled !== null) return this.#visualChecksEnabled;
+        try {
+            const resp = await fetch("/umbraco/AccessibilityToolkit/Accessibility/GetFeatures");
+            if (!resp.ok) { this.#visualChecksEnabled = false; return false; }
+            const data = await resp.json();
+            this.#visualChecksEnabled = data.visualChecks === true;
+        } catch {
+            this.#visualChecksEnabled = false;
+        }
+        return this.#visualChecksEnabled;
+    }
+
+    async #runVisualChecksOnPage(url) {
+        return new Promise((resolve) => {
+            const iframe = document.createElement("iframe");
+            iframe.style.cssText = "position:fixed;left:-10000px;top:-10000px;width:1280px;height:900px;border:none;opacity:0;pointer-events:none;";
+            iframe.setAttribute("sandbox", "allow-same-origin");
+
+            const timeout = setTimeout(() => { iframe.remove(); resolve([]); }, 15000);
+
+            iframe.addEventListener("load", async () => {
+                clearTimeout(timeout);
+                try {
+                    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                    if (!doc || !doc.body) { iframe.remove(); resolve([]); return; }
+                    const issues = this.#analyzeContrastInDocument(doc);
+                    iframe.remove();
+                    resolve(issues);
+                } catch {
+                    iframe.remove();
+                    resolve([]);
+                }
+            });
+
+            iframe.addEventListener("error", () => { clearTimeout(timeout); iframe.remove(); resolve([]); });
+            iframe.src = url;
+            document.body.appendChild(iframe);
+        });
+    }
+
+    #analyzeContrastInDocument(doc) {
+        const issues = [];
+        const win = doc.defaultView || window;
+        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+
+        while (walker.nextNode()) {
+            const el = walker.currentNode;
+            if (!this.#hasDirectText(el)) continue;
+
+            const style = win.getComputedStyle(el);
+            if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
+
+            const fgColor = this.#parseRgba(style.color);
+            if (!fgColor) continue;
+
+            const bgColor = this.#getEffectiveBackground(el, win);
+            const ratio = this.#contrastRatio(fgColor, bgColor);
+            const fontSize = parseFloat(style.fontSize);
+            const fontWeight = parseInt(style.fontWeight, 10) || 400;
+            const isLargeText = fontSize >= 24 || (fontSize >= 18.66 && fontWeight >= 700);
+            const requiredRatio = isLargeText ? 3.0 : 4.5;
+
+            if (ratio < requiredRatio) {
+                const impact = ratio < 2.0 ? "critical" : ratio < 3.0 ? "serious" : "moderate";
+                issues.push({
+                    ruleId: "visual-color-contrast",
+                    description: `Text has insufficient contrast ratio ${ratio.toFixed(2)}:1 (requires ${requiredRatio}:1 for ${isLargeText ? "large" : "normal"} text)`,
+                    category: "Color",
+                    level: "AA",
+                    wcagCriterion: "1.4.3",
+                    impact,
+                    element: this.#truncateHtml(el),
+                    selector: this.#buildCssSelector(el),
+                    recommendation: `Increase contrast ratio to at least ${requiredRatio}:1. Current foreground: ${this.#rgbToHex(fgColor)}, background: ${this.#rgbToHex(bgColor)}.`,
+                    wcagUrl: "https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html",
+                    fgColor: { r: fgColor.r, g: fgColor.g, b: fgColor.b },
+                    bgColor: { r: bgColor.r, g: bgColor.g, b: bgColor.b },
+                    contrastRatio: ratio,
+                    source: "visual"
+                });
+            }
+        }
+        return issues;
+    }
+
+    #hasDirectText(el) {
+        for (const child of el.childNodes) {
+            if (child.nodeType === Node.TEXT_NODE && child.textContent.trim().length > 0) return true;
+        }
+        return false;
+    }
+
+    #parseRgba(str) {
+        if (!str) return null;
+        const match = str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/);
+        if (!match) return null;
+        return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]), a: match[4] !== undefined ? parseFloat(match[4]) : 1 };
+    }
+
+    #getEffectiveBackground(el, win) {
+        const layers = [];
+        let current = el;
+        while (current && current !== el.ownerDocument.documentElement) {
+            const style = win.getComputedStyle(current);
+            const bg = this.#parseRgba(style.backgroundColor);
+            if (bg && bg.a > 0) layers.push(bg);
+            current = current.parentElement;
+        }
+        let result = { r: 255, g: 255, b: 255, a: 1 };
+        for (let i = layers.length - 1; i >= 0; i--) result = this.#alphaComposite(layers[i], result);
+        return result;
+    }
+
+    #alphaComposite(fg, bg) {
+        const a = fg.a + bg.a * (1 - fg.a);
+        if (a === 0) return { r: 0, g: 0, b: 0, a: 0 };
+        return {
+            r: Math.round((fg.r * fg.a + bg.r * bg.a * (1 - fg.a)) / a),
+            g: Math.round((fg.g * fg.a + bg.g * bg.a * (1 - fg.a)) / a),
+            b: Math.round((fg.b * fg.a + bg.b * bg.a * (1 - fg.a)) / a),
+            a,
+        };
+    }
+
+    #srgbToLinear(c) {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    }
+
+    #relativeLuminance(color) {
+        return 0.2126 * this.#srgbToLinear(color.r) + 0.7152 * this.#srgbToLinear(color.g) + 0.0722 * this.#srgbToLinear(color.b);
+    }
+
+    #contrastRatio(fg, bg) {
+        const l1 = this.#relativeLuminance(fg);
+        const l2 = this.#relativeLuminance(bg);
+        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    }
+
+    #buildCssSelector(el) {
+        if (el.id) return `#${el.id}`;
+        const parts = [];
+        let current = el;
+        while (current && current.nodeType === Node.ELEMENT_NODE) {
+            let selector = current.tagName.toLowerCase();
+            if (current.id) { parts.unshift(`#${current.id}`); break; }
+            if (current.className && typeof current.className === "string") {
+                const classes = current.className.trim().split(/\s+/).slice(0, 2).join(".");
+                if (classes) selector += `.${classes}`;
+            }
+            parts.unshift(selector);
+            current = current.parentElement;
+        }
+        return parts.join(" > ");
+    }
+
+    #truncateHtml(el) {
+        const html = el.outerHTML || "";
+        return html.length > 200 ? html.substring(0, 200) + "..." : html;
+    }
+
+    #rgbToHex(color) {
+        const hex = (v) => v.toString(16).padStart(2, "0");
+        return `#${hex(color.r)}${hex(color.g)}${hex(color.b)}`;
+    }
+
+    #mergeVisualIssuesIntoResult(pageResult, visualIssues) {
+        if (!visualIssues || visualIssues.length === 0) return;
+        pageResult.issues = [...(pageResult.issues || []), ...visualIssues];
+        pageResult.totalIssues = pageResult.issues.length;
+        pageResult.criticalCount = pageResult.issues.filter(i => i.impact === "critical").length;
+        pageResult.seriousCount = pageResult.issues.filter(i => i.impact === "serious").length;
+        pageResult.moderateCount = pageResult.issues.filter(i => i.impact === "moderate").length;
+        pageResult.minorCount = pageResult.issues.filter(i => i.impact === "minor").length;
+        const totalDeduction = visualIssues.reduce((sum, i) => {
+            const weights = { critical: 5, serious: 3, moderate: 2, minor: 1 };
+            return sum + (weights[i.impact] || 1);
+        }, 0);
+        pageResult.score = Math.max(0, pageResult.score - totalDeduction);
     }
 
     // --- Helpers ---

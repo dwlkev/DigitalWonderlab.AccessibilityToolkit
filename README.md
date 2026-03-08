@@ -6,12 +6,15 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 
 ### Page-Level Checks
 - **Accessibility tab** on every content page in the workspace
-- **37 WCAG checks** across Level A, AA, and AAA
+- **37 WCAG checks** across Level A, AA, and AAA plus client-side visual checks
 - **Score gauge** (0-100) with colour-coded rating
-- **Categorised issues table** with impact badges (critical/serious/moderate/minor)
-- **Grouped issues** with expandable detail rows showing element snippets, selectors, and fix recommendations
+- **Issues grouped by Content / Code / Design** with impact badges (critical/serious/moderate/minor)
+- **Expandable detail rows** showing element snippets, selectors, and fix recommendations
+- **Visual checks** run automatically as part of each scan — computed colour contrast analysis using the browser's rendering engine
+- **Element screenshots** captured inline for visual issues using html2canvas
 - **Category filtering** and **impact sorting**
 - **CSV export** for offline review and reporting
+- **Printable reports** with executive summary, category breakdown, and per-issue detail
 - **Scan history** per page showing scores over time
 
 ### Site Audits
@@ -24,13 +27,16 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 ### Dashboard
 - **Accessibility Toolkit dashboard** in the Content section
 - **Recent Reports** — paginated table of all recent page-level scans
-- **Audit History** — table of past site audits with re-export and delete
-- **Site Audit** form with content node picker and WCAG level selector
+- **Audit History** — table of past site audits with sparkline trend chart, re-export, and delete
+- **Site Audit** form with content node picker, WCAG level selector, and visual checks toggle
+- **Settings** — licence status, audit exclusions (document types and specific pages), data management
 
-### Visual Checks (Coming Soon)
-- Browser-based accessibility analysis using Playwright and axe-core
-- Catches issues that static HTML analysis cannot: computed color contrast, touch target sizes, focus indicator visibility, text reflow, text spacing tolerance, and z-index stacking
-- Premium feature with locked preview in the backoffice
+### Visual Checks
+- Browser-based accessibility analysis using the editor's own browser
+- Catches issues that static HTML analysis cannot: computed colour contrast ratios against real rendered backgrounds
+- Runs automatically as part of every scan — no separate step required
+- Element screenshots captured inline for visual context in reports
+- Optional toggle in site audits ("Include visual checks")
 
 ## Compatibility
 
@@ -123,25 +129,27 @@ Past audits are stored with their full results. In the Audit History table on th
 
 ## Configuration
 
-### Visual Checks (optional)
+### Licence
 
-To enable the visual checks feature (coming soon), add to your `appsettings.json`:
+By default, all features are enabled with no configuration required (community mode). To use a licence key for domain-locked or expiring licences, add it to your `appsettings.json`:
 
 ```json
 {
   "AccessibilityToolkit": {
-    "VisualChecks": {
-      "Enabled": true
-    }
+    "LicenceKey": "your-licence-key-here"
   }
 }
 ```
 
-When disabled (default), the workspace view shows a locked preview of the visual checks feature.
+Licence status is shown on the **Settings** tab of the Accessibility Toolkit dashboard.
+
+### Audit Exclusions
+
+You can exclude specific document types and individual pages from site audits via the **Settings** tab on the dashboard. Excluded items are stored in the database and persist across restarts.
 
 ## How It Works
 
-The tool fetches the published HTML of each page server-side using `HttpClient`, parses it with HtmlAgilityPack, and runs rule-based checks against the DOM. Results are stored in the database (`dwAccessibilityResults` for per-page scans, `dwAccessibilityAudits` for full site audits) so history and re-exports are always available.
+The tool fetches the published HTML of each page server-side using `HttpClient`, parses it with HtmlAgilityPack, and runs 37 rule-based checks against the DOM. After the server-side analysis, visual checks run client-side in a hidden iframe using the editor's browser to detect computed colour contrast issues against real rendered backgrounds. Results are stored in the database (`dwAccessibilityResults` for per-page scans, `dwAccessibilityAudits` for full site audits) so history and re-exports are always available.
 
 ## API Endpoints
 
@@ -154,10 +162,18 @@ All endpoints are under `/umbraco/AccessibilityToolkit/Accessibility/` and requi
 | GET | `GetRecentHistory?count=20` | Get recent page-level scans |
 | DELETE | `DeleteHistory?id={int}` | Delete a scan history entry |
 | POST | `RunAudit?nodeKey={guid}&level=AA` | Run audit on a node and all descendants |
+| GET | `GetDescendantPages?nodeKey={guid}` | Get all descendant pages for a content node |
+| POST | `SaveAudit` | Save an audit record (used by client-side audit flow) |
 | GET | `GetRecentAudits?count=20` | Get recent audit summaries |
 | GET | `ExportAudit?id={int}` | Get full audit results JSON for re-export |
 | DELETE | `DeleteAudit?id={int}` | Delete an audit record |
-| GET | `GetFeatures` | Get enabled feature flags |
+| GET | `GetFeatures` | Get licence status and feature flags |
+| GET | `GetExclusions` | Get excluded document types and pages |
+| POST | `SaveExclusions` | Save exclusion settings |
+| GET | `GetDocumentTypes` | Get all non-element document types |
+| GET | `GetNodeName?nodeKey={guid}` | Resolve a content node's name |
+| GET | `GetPageUrl?nodeKey={guid}` | Resolve a content node's published URL |
+| POST | `ClearAllData` | Delete all scan results and audit history |
 
 ## Issues / Suggestions
 

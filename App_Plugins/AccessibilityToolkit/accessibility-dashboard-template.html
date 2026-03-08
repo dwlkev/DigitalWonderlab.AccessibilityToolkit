@@ -80,6 +80,10 @@
                         <option value="AAA">Level AAA</option>
                     </select>
                 </div>
+                <label class="a11y-visual-check-label" style="display:flex;align-items:center;gap:6px;font-size:0.9em;">
+                    <input type="checkbox" id="a11y-audit-visual-checks" checked />
+                    Include visual checks
+                </label>
                 <uui-button label="Run Audit" id="a11y-audit-btn" look="primary" color="positive"></uui-button>
             </div>
 
@@ -131,11 +135,6 @@
                 No audits yet. Run a site audit above to see results here.
             </div>
 
-            <div id="a11y-audit-sparkline-container" class="a11y-sparkline-container" style="display:none;">
-                <div id="a11y-audit-sparkline" class="a11y-sparkline-chart"></div>
-                <div id="a11y-audit-sparkline-labels" class="a11y-sparkline-labels"></div>
-            </div>
-
             <div class="a11y-table-wrapper">
                 <table class="a11y-table" id="a11y-audit-history-table" style="display:none;">
                     <thead>
@@ -145,6 +144,7 @@
                             <th>Level</th>
                             <th>Pages</th>
                             <th>Avg Score</th>
+                            <th>Trend</th>
                             <th>Issues</th>
                             <th></th>
                         </tr>
@@ -156,18 +156,15 @@
     </div>
 
     <div id="a11y-tab-settings" class="a11y-tab-content" style="display:none;">
-        <uui-box headline="Licence">
-            <div id="a11y-licence-status"></div>
-        </uui-box>
-
-        <uui-box headline="Audit Exclusions" style="margin-top:15px;">
+        <uui-box headline="Audit Exclusions">
             <div id="a11y-settings-loading" class="a11y-loading" style="display:none;">
                 <span class="a11y-spinner"></span> Loading settings...
             </div>
             <div id="a11y-settings-body" style="display:none;">
                 <div class="a11y-settings-section">
                     <h4>Excluded Document Types</h4>
-                    <p class="a11y-settings-desc">Pages with these document types will be skipped during audits.</p>
+                    <p class="a11y-settings-desc">Tick the document types you want to exclude from audits. Pages using these types will be skipped.</p>
+                    <input type="text" id="a11y-doctype-filter" placeholder="Filter document types..." class="a11y-dashboard-input a11y-doctype-filter" />
                     <div id="a11y-doctype-list" class="a11y-doctype-list"></div>
                 </div>
                 <div class="a11y-settings-section">
