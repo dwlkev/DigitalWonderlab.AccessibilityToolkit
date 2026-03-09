@@ -519,12 +519,22 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
 
             tr.innerHTML = `
                 <td title="${this.#escapeHtml(entry.url)}"><a href="${editLink}" class="a11y-page-link">${this.#escapeHtml(shortUrl)}</a></td>
-                <td><span class="a11y-dashboard-score ${scoreClass}">${entry.overallScore}</span></td>
-                <td>${this.#escapeHtml(entry.wcagLevel)}</td>
-                <td>${entry.totalIssues}</td>
+                <td class="a11y-col-score"><span class="a11y-dashboard-score ${scoreClass}">${entry.overallScore}</span></td>
+                <td class="a11y-col-level">${this.#escapeHtml(entry.wcagLevel)}</td>
+                <td class="a11y-col-issues">${entry.totalIssues}</td>
                 <td class="a11y-dashboard-date">${dateStr}</td>
-                <td><button class="a11y-dashboard-delete-btn" data-id="${entry.id}" title="Delete">&times;</button></td>
+                <td class="a11y-audit-history-actions">
+                    <button class="a11y-audit-history-report-btn" data-id="${entry.id}" title="Export Report">Export</button>
+                    <button class="a11y-audit-history-export-btn" data-id="${entry.id}" title="Export CSV">CSV</button>
+                    <button class="a11y-dashboard-delete-btn" data-id="${entry.id}" title="Delete result">&times;</button>
+                </td>
             `;
+
+            const reportBtn = tr.querySelector(".a11y-audit-history-report-btn");
+            reportBtn?.addEventListener("click", () => this.#openRecentReport(entry.id, entry.wcagLevel));
+
+            const csvBtn = tr.querySelector(".a11y-audit-history-export-btn");
+            csvBtn?.addEventListener("click", () => this.#exportRecentCsv(entry.id));
 
             const deleteBtn = tr.querySelector(".a11y-dashboard-delete-btn");
             deleteBtn?.addEventListener("click", () => this.#deleteEntry(entry.id));
@@ -542,10 +552,11 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             if (el) el.textContent = value ?? "-";
         };
 
-        setText("a11y-license-type", info.licenseType || "Free");
+        const hasKey = info.licenseType && info.licenseType !== "Free" && info.licenseType !== "None";
+        setText("a11y-license-type", hasKey ? info.licenseType : "Development (all features enabled)");
         setText("a11y-license-status", info.status || "Active");
-        setText("a11y-license-pro", info.isProEnabled ? "Yes" : "No");
-        setText("a11y-license-domain", info.domain || "*");
+        setText("a11y-license-pro", hasKey ? (info.isProEnabled ? "Yes" : "No") : "All enabled");
+        setText("a11y-license-domain", info.domain || (hasKey ? "-" : "Any (dev mode)"));
 
         const expires = info.expiresAt ? new Date(info.expiresAt).toLocaleString() : "No expiry";
         setText("a11y-license-expires", expires);
@@ -572,6 +583,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     }
 
     async #deleteEntry(id) {
+        if (!confirm("Delete this scan result?")) return;
         try {
             const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/DeleteHistory?id=${id}`, { method: "DELETE" });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -584,6 +596,100 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             this.#notificationContext?.peek("danger", {
                 data: { headline: "Delete failed", message: err.message },
             });
+        }
+    }
+
+    async #openRecentReport(id, wcagLevel) {
+        const win = this.#openReportWindow("Accessibility Scan Report");
+        if (!win) return;
+        try {
+            const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/ExportResult?id=${id}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const savedResult = JSON.parse(data.resultJson);
+
+            const date = new Date(data.scannedAt || Date.now()).toLocaleDateString();
+            const level = wcagLevel || "AA";
+            const score = savedResult.score ?? 0;
+            const scoreClass = score >= 90 ? "good" : score >= 70 ? "ok" : "poor";
+            const esc = (s) => this.#escapeHtml(s);
+
+            let bodyHtml = `
+                <div class="report-header">
+                    <h1>Accessibility Scan Report</h1>
+                    <div class="report-meta">
+                        <span>URL: ${esc(savedResult.url || data.url || "-")}</span>
+                        <span>Date: ${date}</span>
+                        <span>WCAG Level: ${level}</span>
+                    </div>
+                </div>
+                <div class="report-summary">
+                    <div class="report-stat">
+                        <div class="report-stat-value score-${scoreClass}">${score}</div>
+                        <div class="report-stat-label">Score</div>
+                    </div>
+                    <div class="report-stat">
+                        <div class="report-stat-value">${savedResult.totalIssues ?? 0}</div>
+                        <div class="report-stat-label">Issues</div>
+                    </div>
+                </div>
+            `;
+
+            const issues = savedResult.issues || [];
+            if (issues.length > 0) {
+                bodyHtml += `<h2>Issues</h2><table class="report-table"><thead><tr><th>Impact</th><th>Category</th><th>Description</th><th>WCAG</th><th>Element</th></tr></thead><tbody>`;
+                for (const i of issues) {
+                    bodyHtml += `<tr>
+                        <td><span class="impact-badge impact-${esc(i.impact)}">${esc(i.impact)}</span></td>
+                        <td>${esc(i.category)}</td>
+                        <td>${esc(i.description)}</td>
+                        <td>${esc(i.wcagCriterion || "")}</td>
+                        <td><code>${esc(i.element || i.selector || "")}</code></td>
+                    </tr>`;
+                }
+                bodyHtml += `</tbody></table>`;
+            } else {
+                bodyHtml += `<p class="no-issues">No issues found.</p>`;
+            }
+
+            this.#populateReportWindow(win, bodyHtml);
+        } catch (err) {
+            win.document.body.innerHTML = `<p style="color:red;">Failed to load report: ${this.#escapeHtml(err.message)}</p>`;
+        }
+    }
+
+    async #exportRecentCsv(id) {
+        try {
+            const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/ExportResult?id=${id}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            const savedResult = JSON.parse(data.resultJson);
+
+            const issues = savedResult.issues || [];
+            if (issues.length === 0) {
+                this.#notificationContext?.peek("warning", { data: { headline: "No data", message: "No issues to export." } });
+                return;
+            }
+
+            const headers = ["Impact", "WCAG", "Category", "Description", "Element", "Selector", "Recommendation"];
+            const rows = issues.map(i => [
+                i.impact || "", i.wcagCriterion || "", i.category || "",
+                i.description || "", i.element || "", i.selector || "", i.recommendation || ""
+            ]);
+
+            const csvContent = [headers, ...rows]
+                .map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))
+                .join("\n");
+
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `accessibility-scan-${id}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            this.#notificationContext?.peek("danger", { data: { headline: "Export failed", message: err.message } });
         }
     }
 
@@ -646,15 +752,15 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             tr.innerHTML = `
                 <td class="a11y-dashboard-date">${dateStr}</td>
                 <td><a href="${editLink}" class="a11y-page-link" title="${this.#escapeHtml(audit.rootNodeKey)}">${this.#escapeHtml(displayName)}</a></td>
-                <td>${this.#escapeHtml(audit.wcagLevel)}</td>
-                <td>${audit.totalPages}</td>
-                <td><span class="a11y-dashboard-score ${scoreClass}">${audit.averageScore}</span></td>
+                <td class="a11y-col-level">${this.#escapeHtml(audit.wcagLevel)}</td>
+                <td class="a11y-col-pages">${audit.totalPages}</td>
+                <td class="a11y-col-score"><span class="a11y-dashboard-score ${scoreClass}">${audit.averageScore}</span></td>
                 <td class="a11y-audit-sparkline-cell"></td>
-                <td>${audit.totalIssues}</td>
+                <td class="a11y-col-issues">${audit.totalIssues}</td>
                 <td class="a11y-audit-history-actions">
-                    <button class="a11y-audit-history-report-btn" data-id="${audit.id}" title="Print Report">Report</button>
+                    <button class="a11y-audit-history-report-btn" data-id="${audit.id}" title="Export Report">Export</button>
                     <button class="a11y-audit-history-export-btn" data-id="${audit.id}" title="Export CSV">CSV</button>
-                    <button class="a11y-dashboard-delete-btn" data-id="${audit.id}" title="Delete">&times;</button>
+                    <button class="a11y-dashboard-delete-btn" data-id="${audit.id}" title="Delete audit">&times;</button>
                 </td>
             `;
 
@@ -696,6 +802,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     }
 
     async #deleteAudit(id) {
+        if (!confirm("Delete this audit run?")) return;
         try {
             const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/DeleteAudit?id=${id}`, { method: "DELETE" });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -941,6 +1048,9 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         pagesContainer.style.display = "none";
         toggleBtn.innerHTML = `Show all ${data.pages.length} pages &#9660;`;
 
+        const avgScore = data.summary.averageScore;
+        const avgScoreClass = avgScore >= 90 ? "a11y-score-good" : avgScore >= 70 ? "a11y-score-ok" : "a11y-score-poor";
+
         summary.innerHTML = `
             <div class="a11y-dashboard-audit-stats">
                 <div class="a11y-dashboard-stat">
@@ -948,7 +1058,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     <span class="a11y-dashboard-stat-label">Pages Scanned</span>
                 </div>
                 <div class="a11y-dashboard-stat">
-                    <span class="a11y-dashboard-stat-value">${data.summary.averageScore}</span>
+                    <span class="a11y-dashboard-stat-value ${avgScoreClass}">${avgScore}</span>
                     <span class="a11y-dashboard-stat-label">Average Score</span>
                 </div>
                 <div class="a11y-dashboard-stat">

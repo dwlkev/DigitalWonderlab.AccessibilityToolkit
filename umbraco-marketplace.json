@@ -14,7 +14,7 @@
   },
   "Category": "Editor Tools",
   "IssueTrackerUrl": "https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/issues",
-  "Description": "Accessibility Toolkit adds page-level and site-level WCAG accessibility auditing to Umbraco backoffice: 37 checks (A/AA/AAA), scored results, visual contrast checks, history, and export-ready reports.",
+  "Description": "Accessibility Toolkit adds page-level and site-level WCAG accessibility auditing to Umbraco backoffice: 37 checks (A/AA/AAA), scored results, visual contrast checks with preview snippets, history, and export-ready reports.",
   "LicenseTypes": [ "Free" ],
   "PackageType": "Package",
   "Screenshots": [],

@@ -224,6 +224,11 @@
     margin-bottom: 12px;
     flex-wrap: wrap;
     gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    padding: 4px 0;
 }
 
 .a11y-issues-actions {
@@ -278,6 +283,9 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: #555;
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
 .a11y-th-sortable {
@@ -291,6 +299,18 @@
 
 .a11y-table tbody tr.a11y-issue-row:hover {
     background: #f9fafb;
+}
+
+.a11y-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.a11y-col-score,
+.a11y-col-level,
+.a11y-col-issues,
+.a11y-col-pages {
+    text-align: center !important;
+    font-variant-numeric: tabular-nums;
 }
 
 .a11y-desc-cell {
@@ -331,9 +351,9 @@
 .a11y-count-badge {
     display: inline-block;
     margin-left: 6px;
-    padding: 1px 6px;
+    padding: 2px 8px;
     border-radius: 10px;
-    font-size: 0.75em;
+    font-size: 0.82em;
     font-weight: 700;
     background: #e5e7eb;
     color: #374151;
@@ -488,7 +508,7 @@
 }
 
 .a11y-dashboard-intro {
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .a11y-dashboard-intro a {
@@ -502,7 +522,7 @@
 
 .a11y-dashboard-hint {
     font-size: 0.9em;
-    margin-top: 8px !important;
+    margin-top: 4px !important;
 }
 
 .a11y-services-inline-actions {
@@ -515,20 +535,78 @@
 .a11y-faq-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 4px;
 }
 
-.a11y-faq-item h4 {
-    margin: 0 0 4px 0;
-    font-size: 0.98em;
+details.a11y-faq-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
 }
 
-.a11y-faq-item p {
+details.a11y-faq-item[open] {
+    border-color: #c7d2fe;
+}
+
+details.a11y-faq-item summary {
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: 0.93em;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f9fafb;
+    transition: background 0.15s;
+}
+
+details.a11y-faq-item summary:hover {
+    background: #f3f4f6;
+}
+
+details.a11y-faq-item summary::before {
+    content: "\25B6";
+    font-size: 0.65em;
+    color: #9ca3af;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+}
+
+details.a11y-faq-item[open] summary::before {
+    transform: rotate(90deg);
+}
+
+details.a11y-faq-item summary::-webkit-details-marker {
+    display: none;
+}
+
+details.a11y-faq-item p {
     margin: 0;
+    padding: 10px 14px;
+    font-size: 0.9em;
+    color: #4b5563;
+    line-height: 1.5;
+}
+
+.a11y-services-card {
+    margin: 12px 0 8px 0;
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f1f5ff 100%);
+    padding: 16px;
+}
+
+.a11y-services-card-header {
+    font-weight: 700;
+    font-size: 0.88em;
+    color: #1e40af;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 10px;
 }
 
 .a11y-services-list {
-    margin: 10px 0 6px 0;
     display: grid;
     gap: 8px;
 }
@@ -551,6 +629,26 @@
     font-weight: 800;
     line-height: 1.2;
     margin-top: 1px;
+}
+
+.a11y-services-proof {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border: 1px dashed #c7d2fe;
+    border-radius: 8px;
+    background: #f8faff;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.a11y-services-proof span {
+    font-size: 0.82em;
+    color: #334155;
+    font-weight: 600;
+    background: #eef2ff;
+    border-radius: 999px;
+    padding: 3px 8px;
 }
 
 .a11y-issues-actions .a11y-audit-history-report-btn,
@@ -672,6 +770,10 @@
     font-weight: 800;
     color: #1f2937;
 }
+
+.a11y-dashboard-stat-value.a11y-score-good { color: #16a34a; }
+.a11y-dashboard-stat-value.a11y-score-ok { color: #d97706; }
+.a11y-dashboard-stat-value.a11y-score-poor { color: #dc2626; }
 
 .a11y-dashboard-stat-label {
     font-size: 0.8em;
@@ -1068,6 +1170,31 @@ uui-tab-group {
     background: #fafafa;
 }
 
+.a11y-settings-collapse {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fafafa;
+    overflow: hidden;
+}
+
+.a11y-settings-collapse > summary {
+    cursor: pointer;
+    padding: 10px 12px;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #374151;
+    user-select: none;
+}
+
+.a11y-settings-collapse[open] > summary {
+    border-bottom: 1px solid #e5e7eb;
+    background: #f3f4f6;
+}
+
+.a11y-settings-collapse-body {
+    padding: 10px;
+}
+
 .a11y-doctype-label {
     display: flex;
     align-items: center;
@@ -1144,7 +1271,7 @@ uui-tab-group {
 .a11y-license-panel {
     border: 1px solid #e5e7eb;
     border-radius: 6px;
-    background: #fafafa;
+    background: linear-gradient(180deg, #f8faff 0%, #f9fafb 100%);
     padding: 8px 10px;
     display: grid;
     gap: 6px;
@@ -1158,7 +1285,7 @@ uui-tab-group {
 }
 
 .a11y-license-row span {
-    color: #666;
+    color: #475569;
 }
 
 .a11y-license-status-active {
@@ -1186,29 +1313,43 @@ uui-tab-group {
 /* Issue group headers (Content / Code / Design) */
 .a11y-group-header-row td {
     background: #f3f4f6 !important;
-    padding: 8px 12px !important;
+    padding: 10px 12px !important;
     border-bottom: 2px solid #e5e7eb !important;
-    font-size: 0.9em;
+    font-size: 0.93em;
+    border-left: 4px solid transparent !important;
 }
+
+.a11y-group-header-row.a11y-group-content td { border-left-color: #2563eb !important; }
+.a11y-group-header-row.a11y-group-code td { border-left-color: #7c3aed !important; }
+.a11y-group-header-row.a11y-group-design td { border-left-color: #d97706 !important; }
 
 .a11y-group-icon {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    margin-right: 4px;
-    vertical-align: middle;
+    display: none;
 }
 
-.a11y-group-icon-content { background: #2563eb; }
-.a11y-group-icon-code { background: #7c3aed; }
-.a11y-group-icon-design { background: #d97706; }
-
 .a11y-group-count {
-    font-weight: 400;
-    color: #888;
-    font-size: 0.9em;
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.82em;
+    font-weight: 600;
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.a11y-visual-badge {
+    display: inline-block;
     margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 0.72em;
+    font-weight: 600;
+    background: #ede9fe;
+    color: #6d28d9;
+    vertical-align: middle;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
 /* Responsive */

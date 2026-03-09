@@ -114,6 +114,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                         <div class="a11y-meta">
                             <span id="a11y-checks-run">0 checks run</span>
                             &middot;
+                            <span id="a11y-score-delta">No previous run</span>
+                            &middot;
                             <span id="a11y-url"></span>
                         </div>
                     </div>
@@ -123,6 +125,13 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                     <div class="a11y-issues-header">
                         <h3 id="a11y-issues-title">Issues</h3>
                         <div class="a11y-issues-actions">
+                            <select id="a11y-filter-impact">
+                                <option value="">All Severities</option>
+                                <option value="critical">Critical</option>
+                                <option value="serious">Serious</option>
+                                <option value="moderate">Moderate</option>
+                                <option value="minor">Minor</option>
+                            </select>
                             <select id="a11y-filter-category">
                                 <option value="">All Categories</option>
                             </select>
@@ -191,6 +200,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         const runBtn = this.shadowRoot.getElementById("a11y-run-btn");
         const levelSelect = this.shadowRoot.getElementById("a11y-level-select");
         const exportBtn = this.shadowRoot.getElementById("a11y-export-btn");
+        const filterImpact = this.shadowRoot.getElementById("a11y-filter-impact");
         const filterCategory = this.shadowRoot.getElementById("a11y-filter-category");
 
         const reportBtn = this.shadowRoot.getElementById("a11y-report-btn");
@@ -199,6 +209,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         levelSelect?.addEventListener("change", (e) => { this.#level = e.target.value; });
         exportBtn?.addEventListener("click", () => this.#exportCsv());
         reportBtn?.addEventListener("click", () => this.#openPageReport());
+        filterImpact?.addEventListener("change", () => this.#renderIssuesTable());
         filterCategory?.addEventListener("change", () => this.#renderIssuesTable());
 
         this.shadowRoot.querySelectorAll(".a11y-th-sortable").forEach((th) => {
@@ -430,13 +441,13 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
 
             tr.innerHTML = `
                 <td class="a11y-dashboard-date">${dateStr}</td>
-                <td><span class="a11y-dashboard-score ${scoreClass}">${entry.overallScore}</span></td>
-                <td>${this.#escapeHtml(entry.wcagLevel)}</td>
-                <td>${entry.totalIssues}</td>
+                <td class="a11y-col-score"><span class="a11y-dashboard-score ${scoreClass}">${entry.overallScore}</span></td>
+                <td class="a11y-col-level">${this.#escapeHtml(entry.wcagLevel)}</td>
+                <td class="a11y-col-issues">${entry.totalIssues}</td>
                 <td class="a11y-audit-history-actions">
                     <button class="a11y-audit-history-report-btn" data-id="${entry.id}" title="Export Report">Export</button>
                     <button class="a11y-audit-history-export-btn" data-id="${entry.id}" title="Export CSV">CSV</button>
-                    <button class="a11y-dashboard-delete-btn" data-id="${entry.id}" title="Delete">&times;</button>
+                    <button class="a11y-dashboard-delete-btn" data-id="${entry.id}" title="Delete run">&times;</button>
                 </td>
             `;
 
@@ -454,6 +465,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     }
 
     async #deleteHistoryEntry(id) {
+        if (!confirm("Delete this page scan run?")) return;
         try {
             const response = await fetch(`/umbraco/AccessibilityToolkit/Accessibility/DeleteHistory?id=${id}`, { method: "DELETE" });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -535,6 +547,18 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         this.shadowRoot.getElementById("a11y-count-minor").textContent = result.minorCount;
 
         this.shadowRoot.getElementById("a11y-checks-run").textContent = `${result.totalChecks} checks run`;
+        const previous = this.#pageHistory.find((h) => h.id !== result.resultId);
+        const deltaEl = this.shadowRoot.getElementById("a11y-score-delta");
+        if (deltaEl) {
+            if (previous && typeof previous.overallScore === "number") {
+                const delta = result.score - previous.overallScore;
+                if (delta > 0) deltaEl.textContent = `Up ${delta} from previous run`;
+                else if (delta < 0) deltaEl.textContent = `Down ${Math.abs(delta)} from previous run`;
+                else deltaEl.textContent = "No change from previous run";
+            } else {
+                deltaEl.textContent = "No previous run";
+            }
+        }
         this.shadowRoot.getElementById("a11y-url").textContent = result.url;
 
         const filterCategory = this.shadowRoot.getElementById("a11y-filter-category");
@@ -597,11 +621,16 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         const tbody = this.shadowRoot.getElementById("a11y-issues-body");
         const table = this.shadowRoot.getElementById("a11y-issues-table");
         const noIssues = this.shadowRoot.getElementById("a11y-no-issues");
+        const filterImpact = this.shadowRoot.getElementById("a11y-filter-impact");
         const filterCategory = this.shadowRoot.getElementById("a11y-filter-category");
         const titleEl = this.shadowRoot.getElementById("a11y-issues-title");
 
+        const impactValue = (filterImpact?.value || "").toLowerCase();
         const filterValue = filterCategory.value;
         let issues = result.issues || [];
+        if (impactValue) {
+            issues = issues.filter((i) => String(i.impact || "").toLowerCase() === impactValue);
+        }
         if (filterValue) {
             issues = issues.filter((i) => i.category === filterValue);
         }
@@ -636,20 +665,23 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
 
             // Group header row
             const headerTr = document.createElement("tr");
-            headerTr.className = "a11y-group-header-row";
+            headerTr.className = `a11y-group-header-row a11y-group-${groupName.toLowerCase()}`;
             const issueCount = items.reduce((s, g) => s + g.count, 0);
-            headerTr.innerHTML = `<td colspan="5"><span class="a11y-group-icon a11y-group-icon-${groupName.toLowerCase()}"></span> <strong>${groupName}</strong> <span class="a11y-group-count">${issueCount} issue${issueCount === 1 ? "" : "s"}</span></td>`;
+            headerTr.innerHTML = `<td colspan="5"><strong>${groupName}</strong> <span class="a11y-group-count">${issueCount} issue${issueCount === 1 ? "" : "s"}</span></td>`;
             tbody.appendChild(headerTr);
 
             for (const group of items) {
                 const countBadge = group.count > 1
                     ? ` <span class="a11y-count-badge">${group.count}x</span>`
                     : "";
+                const visualBadge = (group.source === "visual" || (group.ruleId && group.ruleId.startsWith("visual-")))
+                    ? ` <span class="a11y-visual-badge">Visual</span>`
+                    : "";
 
                 const tr = document.createElement("tr");
                 tr.classList.add("a11y-issue-row");
                 tr.innerHTML = `
-                    <td><span class="a11y-badge a11y-badge-${this.#escapeHtml(group.impact)}">${this.#escapeHtml(group.impact)}</span>${countBadge}</td>
+                    <td><span class="a11y-badge a11y-badge-${this.#escapeHtml(group.impact)}">${this.#escapeHtml(group.impact)}</span>${countBadge}${visualBadge}</td>
                     <td>${this.#escapeHtml(group.category)}</td>
                     <td class="a11y-desc-cell">${this.#escapeHtml(group.description)}</td>
                     <td>${group.wcagUrl ? `<a href="${this.#escapeHtml(group.wcagUrl)}" target="_blank" rel="noopener" title="WCAG guidance" class="a11y-wcag-link"><code>${this.#escapeHtml(group.wcagCriterion)}</code></a>` : `<code>${this.#escapeHtml(group.wcagCriterion)}</code>`}</td>

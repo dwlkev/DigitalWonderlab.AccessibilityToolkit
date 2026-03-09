@@ -13,6 +13,8 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 - **Visual checks** run automatically as part of each scan — computed colour contrast analysis using the browser's rendering engine
 - **Element preview snippets** generated for visual issues using browser canvas
 - **Category filtering** and **impact sorting**
+- **Severity filtering** (critical/serious/moderate/minor)
+- **Score delta indicator** compared with previous run
 - **CSV export** for offline review and reporting
 - **Printable reports** with executive summary, category breakdown, and per-issue detail
 - **Scan history** per page showing scores over time
@@ -30,7 +32,7 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 - **Audit History** — table of past site audits with sparkline trend chart, re-export, and delete
 - **Site Audit** form with content node picker and WCAG level selector (visual checks run automatically when enabled)
 - **FAQ** and **Help & Services** tabs for guidance and expert support
-- **Settings** — audit exclusions (document types and specific pages), data management
+- **Settings** with visible license status panel, collapsible exclusions, and data management
 
 ### Visual Checks
 - Browser-based accessibility analysis using the editor's own browser
@@ -154,6 +156,12 @@ By default, the package runs in **Free** mode with visual checks enabled. You ca
 
 `GetFeatures` returns `licenseType`, `status`, `expiresAt`, and `isProEnabled` for UI/runtime gating.
 
+Current note: licensing is configuration-driven in this release line. Signed key validation and revocation are planned but not yet implemented.
+
+### Telemetry
+
+Telemetry is not implemented in the current package release. Planned implementation details are tracked in `Planning/telemetry.md`.
+
 ### Audit Exclusions
 
 You can exclude specific document types and individual pages from site audits via the **Settings** tab on the dashboard. Excluded items are stored in the database and persist across restarts.
@@ -191,6 +199,7 @@ All endpoints are under `/umbraco/AccessibilityToolkit/Accessibility/` and requi
 
 To report an issue or suggest a feature, please use the GitHub issue tracker:
 https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/issues
+
 
 
 

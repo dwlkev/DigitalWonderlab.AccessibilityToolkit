@@ -3,13 +3,11 @@
         <div class="a11y-dashboard-intro-content">
             <h2>Accessibility Toolkit</h2>
             <p>
-                Monitor the accessibility health of your website. This dashboard shows recent scan history
-                and provides tools to audit your content against
+                Monitor accessibility health with recent scans, site audits, and page-level checks against
                 <a href="https://www.w3.org/WAI/WCAG21/quickref/" target="_blank" rel="noopener">WCAG 2.1 guidelines</a>.
             </p>
             <p class="a11y-dashboard-hint">
-                Run individual page checks from the <strong>Accessibility</strong> tab on any content node,
-                or use the Site Audit tab to scan a section of your site.
+                Run checks from the <strong>Accessibility</strong> content tab, or scan a section from <strong>Site Audit</strong>.
             </p>
         </div>
     </uui-box>
@@ -155,32 +153,40 @@
     <div id="a11y-tab-faq" class="a11y-tab-content" style="display:none;">
         <uui-box headline="Frequently Asked Questions">
             <div class="a11y-faq-list">
-                <div class="a11y-faq-item">
-                    <h4>What do visual checks currently cover?</h4>
-                    <p>Visual checks currently focus on computed color contrast issues. They complement server-side HTML checks.</p>
-                </div>
-                <div class="a11y-faq-item">
-                    <h4>Why might screenshot previews be missing?</h4>
-                    <p>Some pages block capture due to browser security constraints (for example cross-origin assets). The report still includes selectors and contrast details.</p>
-                </div>
-                <div class="a11y-faq-item">
-                    <h4>How does licensing work?</h4>
-                    <p>Core functionality is Free Forever. Pro features are currently enabled as an Early Adopter trial.</p>
-                </div>
-                <div class="a11y-faq-item">
-                    <h4>Does this guarantee WCAG AA compliance?</h4>
+                <details class="a11y-faq-item">
+                    <summary>What do visual checks currently cover?</summary>
+                    <p>Visual checks analyse computed color contrast on the rendered page. They complement the 37 server-side HTML checks by catching issues that only appear after CSS is applied.</p>
+                </details>
+                <details class="a11y-faq-item">
+                    <summary>Why might screenshot previews be missing?</summary>
+                    <p>Some pages block capture due to browser security constraints (for example cross-origin assets). The report still includes selectors and contrast details for every issue found.</p>
+                </details>
+                <details class="a11y-faq-item">
+                    <summary>How does licensing work?</summary>
+                    <p>Core functionality is free forever. When no licence key is configured, all features are enabled for development and evaluation. See the Settings tab for licence details.</p>
+                </details>
+                <details class="a11y-faq-item">
+                    <summary>Does this guarantee WCAG AA compliance?</summary>
                     <p>
-                        This toolkit helps you work toward WCAG AA, but automated scans are not fully exhaustive and do not replace expert review.
+                        This toolkit helps you work toward WCAG AA, but automated scans cannot catch every issue and do not replace expert review.
                         If you need deeper coverage, visit the <a href="#" id="a11y-faq-help-link">Help &amp; Services</a> tab.
                     </p>
-                </div>
-                <div class="a11y-faq-item">
-                    <h4>How can I report issues or request features?</h4>
+                </details>
+                <details class="a11y-faq-item">
+                    <summary>How can I report issues or request features?</summary>
                     <p>
                         Use the GitHub issues tracker:
                         <a href="https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/issues" target="_blank" rel="noopener">Accessibility Toolkit Issues</a>
                     </p>
-                </div>
+                </details>
+                <details class="a11y-faq-item">
+                    <summary>What WCAG levels can I test against?</summary>
+                    <p>You can choose Level A, AA, or AAA. Level AA is the default and the most commonly required standard. Higher levels include all checks from lower levels.</p>
+                </details>
+                <details class="a11y-faq-item">
+                    <summary>Can I exclude certain pages or document types from audits?</summary>
+                    <p>Yes. Go to the Settings tab to exclude specific document types or individual pages. Excluded items are skipped during site audits.</p>
+                </details>
             </div>
         </uui-box>
     </div>
@@ -191,11 +197,19 @@
                 Need deeper coverage than automated checks? Our team can run a comprehensive manual audit,
                 prioritize remediation, and help your team ship compliant fixes faster.
             </p>
-            <div class="a11y-services-list">
-                <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> WCAG manual audits with evidence-backed findings</div>
-                <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Prioritized remediation roadmap tailored to your team</div>
-                <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Hands-on implementation support and follow-up verification</div>
-                <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Faster progress toward stronger compliance confidence</div>
+            <div class="a11y-services-card">
+                <div class="a11y-services-card-header">What's included</div>
+                <div class="a11y-services-list">
+                    <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> WCAG manual audits with evidence-backed findings</div>
+                    <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Prioritized remediation roadmap tailored to your team</div>
+                    <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Hands-on implementation support and follow-up verification</div>
+                    <div class="a11y-services-item"><span class="a11y-services-tick">&#10003;</span> Faster progress toward stronger compliance confidence</div>
+                </div>
+                <div class="a11y-services-proof">
+                    <span>Manual WCAG 2.2 AA review</span>
+                    <span>Prioritized fixes for dev teams</span>
+                    <span>Evidence-led reporting</span>
+                </div>
             </div>
             <div class="a11y-services-inline-actions">
                 <uui-button label="Book Expert Audit" id="a11y-services-tab-btn" look="primary" color="default"></uui-button>
@@ -211,11 +225,11 @@
             <div id="a11y-settings-body" style="display:none;">
                 <div class="a11y-settings-section">
                     <h4>License</h4>
-                    <p class="a11y-settings-desc">Core tools are Free Forever. Pro features can be controlled by license settings.</p>
+                    <p class="a11y-settings-desc">All features are available in development mode. Configure a licence key in production for ongoing access.</p>
                     <div id="a11y-license-panel" class="a11y-license-panel">
-                        <div class="a11y-license-row"><span>License Type</span><strong id="a11y-license-type">-</strong></div>
+                        <div class="a11y-license-row"><span>Mode</span><strong id="a11y-license-type">-</strong></div>
                         <div class="a11y-license-row"><span>Status</span><strong id="a11y-license-status">-</strong></div>
-                        <div class="a11y-license-row"><span>Pro Enabled</span><strong id="a11y-license-pro">-</strong></div>
+                        <div class="a11y-license-row"><span>Features</span><strong id="a11y-license-pro">-</strong></div>
                         <div class="a11y-license-row"><span>Expires</span><strong id="a11y-license-expires">-</strong></div>
                         <div class="a11y-license-row"><span>Domain</span><strong id="a11y-license-domain">-</strong></div>
                     </div>
@@ -224,14 +238,24 @@
                 <div class="a11y-settings-section">
                     <h4>Excluded Document Types</h4>
                     <p class="a11y-settings-desc">Tick the document types you want to exclude from audits. Pages using these types will be skipped.</p>
-                    <input type="text" id="a11y-doctype-filter" placeholder="Filter document types..." class="a11y-dashboard-input a11y-doctype-filter" />
-                    <div id="a11y-doctype-list" class="a11y-doctype-list"></div>
+                    <details class="a11y-settings-collapse">
+                        <summary>Manage excluded document types</summary>
+                        <div class="a11y-settings-collapse-body">
+                            <input type="text" id="a11y-doctype-filter" placeholder="Filter document types..." class="a11y-dashboard-input a11y-doctype-filter" />
+                            <div id="a11y-doctype-list" class="a11y-doctype-list"></div>
+                        </div>
+                    </details>
                 </div>
                 <div class="a11y-settings-section">
                     <h4>Excluded Pages</h4>
                     <p class="a11y-settings-desc">These specific pages will be skipped during audits.</p>
-                    <div id="a11y-excluded-pages-list" class="a11y-excluded-pages-list"></div>
-                    <uui-button label="Add Page" id="a11y-add-excluded-page-btn" look="outline" style="margin-top:8px;"></uui-button>
+                    <details class="a11y-settings-collapse">
+                        <summary>Manage excluded pages</summary>
+                        <div class="a11y-settings-collapse-body">
+                            <div id="a11y-excluded-pages-list" class="a11y-excluded-pages-list"></div>
+                            <uui-button label="Add Page" id="a11y-add-excluded-page-btn" look="outline" style="margin-top:8px;"></uui-button>
+                        </div>
+                    </details>
                 </div>
                 <div style="margin-top:12px;">
                     <uui-button label="Save Settings" id="a11y-save-settings-btn" look="primary" color="positive"></uui-button>

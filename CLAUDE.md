@@ -22,8 +22,8 @@ This is a **library project** that gets packed as a NuGet package and consumed b
 
 Vanilla web components with Shadow DOM. No build step, no framework. Files live in `App_Plugins/AccessibilityToolkit/` and are packed into the NuGet package as content.
 
-- **`accessibility-toolkit.v1103.js`** — Workspace view (Accessibility tab on each content node). Score gauge, issues table, scan history, visual checks preview.
-- **`accessibility-dashboard.v1103.js`** — Dashboard in the Content section. Recent reports, site audit, FAQ, help/services, settings.
+- **`accessibility-toolkit.v1103.js`** — Workspace view (Accessibility tab on each content node). Score gauge, issues table, scan history, severity filter, score delta vs previous run, visual checks preview.
+- **`accessibility-dashboard.v1103.js`** — Dashboard in the Content section. Recent reports, site audit, FAQ, help/services, settings, license/exclusions management.
 - **`accessibility-dashboard-template.html`** — HTML template loaded by the dashboard JS.
 - **`accessibility-toolkit-style.css`** — Shared styles for both views.
 - **`umbraco-package.json`** — Registers the workspace view and dashboard with Umbraco.
@@ -75,6 +75,9 @@ All under `/umbraco/AccessibilityToolkit/Accessibility/`, backoffice auth requir
 ## Development & Testing Workflow
 
 The test environment is a separate Umbraco site at `C:\Users\KevinTriggle\source\repos\dwl-baseline`.
+`reinstall-test-sites.sh` currently reinstalls into both:
+- `C:\Users\KevinTriggle\source\repos\v17-test-site\MyProject`
+- `C:\Users\KevinTriggle\source\repos\dwl-baseline\src\UmbracoProject`
 
 **After every code change, the full deploy cycle must be completed:**
 
@@ -98,8 +101,11 @@ Never use project references. Always NuGet package. This ensures the packaging a
 
 - **Visual checks**: Implemented client-side via hidden iframe for computed contrast checks, with canvas-based preview snippets and fallback states.
 - **Page exclusions**: Implemented in dashboard Settings (document type + specific page exclusions).
-- **Licence model**: Currently config/feature-flag based in runtime service; licensing roadmap remains in planning docs.
+- **Licence model**: Config/feature-flag based in runtime service; dashboard Settings shows license type/status/pro enabled/expires/domain.
+- **Dashboard UX**: FAQ now uses accordion pattern, Help & Services includes stronger proof block, and Settings exclusions are collapsible.
+- **Table UX**: Scan/audit history tables use centered result columns (`Score`, `Level`, `Pages`, `Avg Score`, `Issues`) with consistent `Export` + `CSV` actions.
+- **Telemetry**: Not implemented yet (planned separately in `Planning/telemetry.md`).
 
 ## Current Version
 
-**1.10.6**
+**1.10.11**
