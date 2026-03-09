@@ -511,6 +511,23 @@
     margin-bottom: 10px;
 }
 
+.a11y-telemetry-notice {
+    margin-bottom: 10px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    border-left: 4px solid #2563eb;
+}
+
+.a11y-telemetry-notice p {
+    margin: 0;
+    font-size: 0.9em;
+    color: #1e293b;
+}
+
+.a11y-telemetry-notice a {
+    font-weight: 600;
+}
+
 .a11y-dashboard-intro a {
     color: #2563eb;
     text-decoration: none;
@@ -1266,6 +1283,26 @@ uui-tab-group {
     color: #16a34a;
     font-weight: 600;
     margin-left: 10px;
+}
+
+.a11y-telemetry-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+    margin-top: 4px;
+}
+
+.a11y-telemetry-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #2563eb;
+}
+
+.a11y-telemetry-status {
+    margin-top: 6px;
+    font-size: 0.82em;
+    color: #64748b;
 }
 
 .a11y-license-panel {

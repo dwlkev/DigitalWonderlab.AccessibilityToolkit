@@ -42,6 +42,9 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     #excludedNodeKeys = [];
     #allDocumentTypes = [];
     #licenseInfo = null;
+    #telemetryEnabled = true;
+    #telemetryAcknowledged = false;
+    #telemetryLoaded = false;
     #servicesUrl = "https://digitalwonderlab.com/contact/";
 
     constructor() {
@@ -82,6 +85,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             requestAnimationFrame(() => {
                 this.#bindEvents();
                 this.#loadRecentReports();
+                this.#initTelemetryNotice();
             });
         } catch (err) {
             console.error("Failed to load dashboard template", err);
@@ -132,6 +136,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             e.preventDefault();
             this.#switchTab("help-services");
         });
+
     }
 
     #openServicesPage() {
@@ -175,10 +180,11 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         body.style.display = "none";
 
         try {
-            const [exclusionsResp, docTypesResp, featuresResp] = await Promise.all([
+            const [exclusionsResp, docTypesResp, featuresResp, telemetryResp] = await Promise.all([
                 fetch("/umbraco/AccessibilityToolkit/Accessibility/GetExclusions"),
                 fetch("/umbraco/AccessibilityToolkit/Accessibility/GetDocumentTypes"),
                 fetch("/umbraco/AccessibilityToolkit/Accessibility/GetFeatures"),
+                fetch("/umbraco/AccessibilityToolkit/Accessibility/GetTelemetrySettings"),
             ]);
 
             if (exclusionsResp.ok) {
@@ -198,8 +204,16 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                 this.#licenseInfo = await featuresResp.json();
             }
 
+            if (telemetryResp.ok) {
+                const telemetry = await telemetryResp.json();
+                this.#telemetryEnabled = telemetry.enabled !== false;
+                this.#telemetryAcknowledged = telemetry.acknowledged === true;
+                this.#telemetryLoaded = true;
+            }
+
             this.#settingsLoaded = true;
             this.#renderLicenseInfo();
+            this.#renderTelemetrySettings();
             this.#renderDocTypeList();
             this.#renderExcludedPagesList();
         } catch (err) {
@@ -343,28 +357,100 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         const savedLabel = this.shadowRoot.getElementById("a11y-settings-saved");
 
         try {
-            const resp = await fetch("/umbraco/AccessibilityToolkit/Accessibility/SaveExclusions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    excludedDocumentTypes: this.#excludedDocTypes,
-                    excludedNodeKeys: this.#excludedNodeKeys.map(n => n.key),
-                }),
-            });
+            const telemetryCheckbox = this.shadowRoot.getElementById("a11y-telemetry-enabled");
+            this.#telemetryEnabled = telemetryCheckbox ? telemetryCheckbox.checked : this.#telemetryEnabled;
 
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const [exclusionsResp, telemetryResp] = await Promise.all([
+                fetch("/umbraco/AccessibilityToolkit/Accessibility/SaveExclusions", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        excludedDocumentTypes: this.#excludedDocTypes,
+                        excludedNodeKeys: this.#excludedNodeKeys.map(n => n.key),
+                    }),
+                }),
+                this.#saveTelemetrySettings(this.#telemetryEnabled, true),
+            ]);
+
+            if (!exclusionsResp.ok) throw new Error(`SaveExclusions HTTP ${exclusionsResp.status}`);
+            if (!telemetryResp.ok) throw new Error(`SaveTelemetrySettings HTTP ${telemetryResp.status}`);
 
             savedLabel.style.display = "inline";
             setTimeout(() => { savedLabel.style.display = "none"; }, 2000);
 
+            this.#telemetryAcknowledged = true;
+            this.#renderTelemetryNotice();
+            this.#renderTelemetrySettings();
+
             this.#notificationContext?.peek("positive", {
-                data: { headline: "Settings saved", message: "Audit exclusion settings have been saved." },
+                data: { headline: "Settings saved", message: "Audit and telemetry settings have been saved." },
             });
         } catch (err) {
             this.#notificationContext?.peek("danger", {
                 data: { headline: "Save failed", message: err.message },
             });
         }
+    }
+
+    async #initTelemetryNotice() {
+        await this.#loadTelemetrySettings();
+        this.#renderTelemetryNotice();
+    }
+
+    async #loadTelemetrySettings() {
+        if (this.#telemetryLoaded) return;
+        try {
+            const resp = await fetch("/umbraco/AccessibilityToolkit/Accessibility/GetTelemetrySettings");
+            if (resp.ok) {
+                const data = await resp.json();
+                this.#telemetryEnabled = data.enabled !== false;
+                this.#telemetryAcknowledged = data.acknowledged === true;
+            }
+        } catch {
+            // Keep defaults if fetch fails.
+        } finally {
+            this.#telemetryLoaded = true;
+        }
+    }
+
+    #renderTelemetryNotice() {
+        const notice = this.shadowRoot.getElementById("a11y-telemetry-notice");
+        if (!notice) return;
+        if (this.#telemetryAcknowledged) {
+            notice.style.display = "none";
+            return;
+        }
+        notice.style.display = "";
+        this.#acknowledgeTelemetryNotice();
+    }
+
+    #renderTelemetrySettings() {
+        const toggle = this.shadowRoot.getElementById("a11y-telemetry-enabled");
+        const status = this.shadowRoot.getElementById("a11y-telemetry-status");
+        if (toggle) toggle.checked = this.#telemetryEnabled;
+        if (status) {
+            status.textContent = this.#telemetryEnabled
+                ? "Telemetry is currently enabled."
+                : "Telemetry is currently disabled.";
+        }
+    }
+
+    async #acknowledgeTelemetryNotice() {
+        if (this.#telemetryAcknowledged) return;
+        this.#telemetryAcknowledged = true;
+
+        const resp = await this.#saveTelemetrySettings(this.#telemetryEnabled, true);
+        if (!resp.ok) {
+            this.#telemetryAcknowledged = false;
+        }
+    }
+
+    async #saveTelemetrySettings(enabled, acknowledged) {
+        return fetch("/umbraco/AccessibilityToolkit/Accessibility/SaveTelemetrySettings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled, acknowledged }),
+        });
     }
 
     // --- Clear All Data ---
@@ -863,6 +949,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
 
         const level = levelSelect?.value || "AA";
         const visualEnabled = await this.#checkVisualEnabled();
+        const auditStartedAt = Date.now();
 
         try {
             // Step 1: Discover pages
@@ -900,7 +987,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
 
                 try {
                     const checkResp = await fetch(
-                        `/umbraco/AccessibilityToolkit/Accessibility/Check?nodeKey=${encodeURIComponent(page.nodeKey)}&level=${level}`
+                        `/umbraco/AccessibilityToolkit/Accessibility/Check?nodeKey=${encodeURIComponent(page.nodeKey)}&level=${level}&emitTelemetry=false`
                     );
 
                     if (!checkResp.ok) {
@@ -931,7 +1018,9 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                         try {
                             const visualIssues = await this.#runVisualChecksOnPage(pageResult.url);
                             this.#mergeVisualIssuesIntoResult(pageResult, visualIssues);
-                        } catch { /* continue without visual */ }
+                        } catch (vErr) {
+                            await this.#trackVisualCheckFailure(this.#classifyVisualCheckError(vErr));
+                        }
                     }
 
                     results.push(pageResult);
@@ -986,6 +1075,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     totalPages: scannedCount,
                     averageScore,
                     totalIssues,
+                    durationMs: Math.max(0, Math.round(Date.now() - auditStartedAt)),
                     resultJson: JSON.stringify(storageData)
                 })
             });
@@ -1794,6 +1884,26 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             iframe.src = url;
             document.body.appendChild(iframe);
         });
+    }
+
+    async #trackVisualCheckFailure(errorCode) {
+        try {
+            await fetch("/umbraco/AccessibilityToolkit/Accessibility/TrackVisualCheckFailure", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ errorCode }),
+            });
+        } catch {
+            // Never block audits on telemetry transport failures.
+        }
+    }
+
+    #classifyVisualCheckError(error) {
+        if (!error) return "visual_check_failed";
+        const text = String(error.message || error).toLowerCase();
+        if (text.includes("timed out")) return "visual_check_timeout";
+        if (text.includes("security")) return "visual_check_security_error";
+        return "visual_check_failed";
     }
 
     #analyzeContrastInDocument(doc) {

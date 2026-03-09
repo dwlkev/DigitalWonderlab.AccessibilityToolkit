@@ -20,8 +20,10 @@ public class AccessibilityToolkitComposer : IComposer
 
         builder.Services.AddScoped<IAccessibilityAnalyzer, AccessibilityAnalyzer>();
         builder.Services.AddScoped<IAccessibilityResultStore, AccessibilityResultStore>();
+        builder.Services.AddScoped<IAccessibilityTelemetryService, AccessibilityTelemetryService>();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<IAccessibilityLicenceService, AccessibilityLicenceService>();
+        builder.Services.AddHttpClient("AccessibilityToolkitTelemetry");
 
         builder.AddNotificationHandler<UmbracoApplicationStartingNotification, RunAccessibilityMigration>();
 

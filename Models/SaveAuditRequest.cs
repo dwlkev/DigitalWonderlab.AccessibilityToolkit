@@ -7,5 +7,6 @@ public class SaveAuditRequest
     public int TotalPages { get; set; }
     public int AverageScore { get; set; }
     public int TotalIssues { get; set; }
+    public int? DurationMs { get; set; }
     public string? ResultJson { get; set; }
 }

@@ -160,7 +160,28 @@ Current note: licensing is configuration-driven in this release line. Signed key
 
 ### Telemetry
 
-Telemetry is not implemented in the current package release. Planned implementation details are tracked in `Planning/telemetry.md`.
+Anonymous telemetry is available and opt-out via the dashboard Settings tab.
+
+Telemetry is zero-config by default and posts to the Digital Wonderlab telemetry endpoint automatically.
+
+Optional override (self-hosted endpoint) in `appsettings.json`:
+
+```json
+{
+  "AccessibilityToolkit": {
+    "Telemetry": {
+      "Enabled": true,
+      "Endpoint": "https://your-api.azurewebsites.net/api/telemetry/events",
+      "TimeoutMs": 3000
+    }
+  }
+}
+```
+
+Behavior:
+- User setting default is enabled unless explicitly disabled in Settings
+- No page URLs or page content are sent
+- Sent events include scan/audit outcomes and visual check failure signals with anonymized site hash
 
 ### Audit Exclusions
 
@@ -188,6 +209,9 @@ All endpoints are under `/umbraco/AccessibilityToolkit/Accessibility/` and requi
 | GET | `ExportAudit?id={int}` | Get full audit results JSON for re-export |
 | DELETE | `DeleteAudit?id={int}` | Delete an audit record |
 | GET | `GetFeatures` | Get licence status and feature flags |
+| GET | `GetTelemetrySettings` | Get telemetry preference state (enabled/acknowledged) |
+| POST | `SaveTelemetrySettings` | Save telemetry preference state |
+| POST | `TrackVisualCheckFailure` | Record client-side visual check failure signal |
 | GET | `GetExclusions` | Get excluded document types and pages |
 | POST | `SaveExclusions` | Save exclusion settings |
 | GET | `GetDocumentTypes` | Get all non-element document types |

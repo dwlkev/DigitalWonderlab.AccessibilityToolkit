@@ -188,7 +188,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                 </div>
             </uui-box>
 
-            <div class="a11y-copy">Created with care by <a href="https://digitalwonderlab.com" target="_blank">Digital Wonderlab</a></div>
+            <div class="a11y-copy">Created with 💗 by <a href="https://digitalwonderlab.com" target="_blank">Digital Wonderlab</a></div>
         `;
 
         this.shadowRoot.appendChild(container);
@@ -229,9 +229,10 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         this.#hideError();
         this.shadowRoot.getElementById("a11y-results").style.display = "none";
 
+        const startedAt = Date.now();
         try {
             const response = await fetch(
-                `/umbraco/AccessibilityToolkit/Accessibility/Check?nodeKey=${this.#nodeKey}&level=${this.#level}`
+                `/umbraco/AccessibilityToolkit/Accessibility/Check?nodeKey=${this.#nodeKey}&level=${this.#level}&emitTelemetry=false`
             );
 
             if (!response.ok) {
@@ -257,11 +258,13 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                     }
                 } catch (vErr) {
                     console.warn("Visual checks failed, continuing with HTML results only", vErr);
+                    await this.#trackVisualCheckFailure(this.#classifyVisualCheckError(vErr));
                 }
             }
 
             this.#showLoading(true, "Complete");
             this.#renderResults();
+            await this.#trackScanCompleted(this.#result?.score, Date.now() - startedAt);
 
             this.#notificationContext?.peek("positive", {
                 data: {
@@ -274,6 +277,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             await this.#loadPageHistory();
         } catch (error) {
             console.error("Accessibility check failed", error);
+            await this.#trackScanFailed(this.#classifyScanError(error), Date.now() - startedAt);
             this.#showError(error.message);
             this.#notificationContext?.peek("danger", {
                 data: { headline: "Check failed", message: error.message },
@@ -327,6 +331,66 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             iframe.src = url;
             document.body.appendChild(iframe);
         });
+    }
+
+    async #trackVisualCheckFailure(errorCode) {
+        try {
+            await fetch("/umbraco/AccessibilityToolkit/Accessibility/TrackVisualCheckFailure", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ errorCode }),
+            });
+        } catch {
+            // Never block checks on telemetry transport failures.
+        }
+    }
+
+    async #trackScanCompleted(score, durationMs) {
+        try {
+            await fetch("/umbraco/AccessibilityToolkit/Accessibility/TrackScanCompleted", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    wcagLevel: this.#level,
+                    score: typeof score === "number" ? score : null,
+                    durationMs: Number.isFinite(durationMs) ? Math.max(0, Math.round(durationMs)) : null
+                }),
+            });
+        } catch {
+            // Never block checks on telemetry transport failures.
+        }
+    }
+
+    async #trackScanFailed(errorCode, durationMs) {
+        try {
+            await fetch("/umbraco/AccessibilityToolkit/Accessibility/TrackScanFailed", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    wcagLevel: this.#level,
+                    errorCode,
+                    durationMs: Number.isFinite(durationMs) ? Math.max(0, Math.round(durationMs)) : null
+                }),
+            });
+        } catch {
+            // Never block checks on telemetry transport failures.
+        }
+    }
+
+    #classifyScanError(error) {
+        if (!error) return "scan_failed";
+        const text = String(error.message || error).toLowerCase();
+        if (text.includes("timed out")) return "scan_timeout";
+        if (text.includes("fetch")) return "html_fetch_failed";
+        return "scan_failed";
+    }
+
+    #classifyVisualCheckError(error) {
+        if (!error) return "visual_check_failed";
+        const text = String(error.message || error).toLowerCase();
+        if (text.includes("timed out")) return "visual_check_timeout";
+        if (text.includes("security")) return "visual_check_security_error";
+        return "visual_check_failed";
     }
 
     /** Merge visual issues into the main result */

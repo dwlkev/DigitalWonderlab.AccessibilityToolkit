@@ -12,6 +12,15 @@
         </div>
     </uui-box>
 
+    <uui-box id="a11y-telemetry-notice" class="a11y-telemetry-notice" style="display:none;">
+        <p>
+            To improve functionality and fix bugs faster, we collect minimal anonymous telemetry.
+            No URLs, content, user identity, selectors, or screenshots are collected.
+            Only high-level stats (for example scan failures, run counts, and timings) are included.
+            You can change this anytime in Settings.
+        </p>
+    </uui-box>
+
     <uui-tab-group>
         <uui-tab label="recent-scans" active>Recent Scans</uui-tab>
         <uui-tab label="site-audit">Site Audit</uui-tab>
@@ -234,6 +243,18 @@
                         <div class="a11y-license-row"><span>Domain</span><strong id="a11y-license-domain">-</strong></div>
                     </div>
                     <div id="a11y-license-error" class="a11y-license-error" style="display:none;"></div>
+                </div>
+                <div class="a11y-settings-section">
+                    <h4>Anonymous Telemetry</h4>
+                    <p class="a11y-settings-desc">
+                        Send minimal anonymous usage and reliability stats to help improve the toolkit.
+                        No URLs, content, user identity, selectors, or screenshots are sent.
+                    </p>
+                    <label class="a11y-telemetry-toggle">
+                        <input type="checkbox" id="a11y-telemetry-enabled" />
+                        <span>Enable anonymous telemetry</span>
+                    </label>
+                    <div id="a11y-telemetry-status" class="a11y-telemetry-status"></div>
                 </div>
                 <div class="a11y-settings-section">
                     <h4>Excluded Document Types</h4>

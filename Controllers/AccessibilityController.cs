@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics;
 using DigitalWonderlab.AccessibilityToolkit.Models;
 using DigitalWonderlab.AccessibilityToolkit.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +20,7 @@ public class AccessibilityController : UmbracoApiController
     private readonly IUmbracoContextAccessor _umbracoContextAccessor;
     private readonly IAccessibilityResultStore _resultStore;
     private readonly IAccessibilityLicenceService _licenceService;
+    private readonly IAccessibilityTelemetryService _telemetryService;
     private readonly IContentTypeService _contentTypeService;
     private readonly ILogger<AccessibilityController> _logger;
 
@@ -27,6 +29,7 @@ public class AccessibilityController : UmbracoApiController
         IUmbracoContextAccessor umbracoContextAccessor,
         IAccessibilityResultStore resultStore,
         IAccessibilityLicenceService licenceService,
+        IAccessibilityTelemetryService telemetryService,
         IContentTypeService contentTypeService,
         ILogger<AccessibilityController> logger)
     {
@@ -34,12 +37,13 @@ public class AccessibilityController : UmbracoApiController
         _umbracoContextAccessor = umbracoContextAccessor;
         _resultStore = resultStore;
         _licenceService = licenceService;
+        _telemetryService = telemetryService;
         _contentTypeService = contentTypeService;
         _logger = logger;
     }
 
     [HttpGet]
-    public async Task<IActionResult> Check(Guid nodeKey, string level = "AA")
+    public async Task<IActionResult> Check(Guid nodeKey, string level = "AA", bool emitTelemetry = true)
     {
         if (!Enum.TryParse<WcagLevel>(level, ignoreCase: true, out var wcagLevel))
             return BadRequest(new { error = $"Invalid WCAG level: {level}. Use A, AA, or AAA." });
@@ -55,12 +59,25 @@ public class AccessibilityController : UmbracoApiController
         if (string.IsNullOrEmpty(url) || url == "#")
             return BadRequest(new { error = "Could not resolve a published URL for this content. Ensure the page is published and has a valid hostname configured." });
 
+        var timer = Stopwatch.StartNew();
         try
         {
             var result = await _analyzer.AnalyzeAsync(url, wcagLevel);
 
             // Save result to history
             var savedId = SaveResultToHistory(nodeKey, result, wcagLevel);
+            if (emitTelemetry)
+            {
+                _ = _telemetryService.TrackEventAsync(new AccessibilityTelemetryEvent
+                {
+                    EventName = "scan_completed",
+                    WcagLevel = wcagLevel.ToString(),
+                    Success = true,
+                    DurationMs = (int)timer.ElapsedMilliseconds,
+                    PagesScanned = 1,
+                    Score = result.Score
+                });
+            }
 
             return Ok(new { result.Url, result.Score, result.TotalChecks, result.TotalIssues,
                 result.CriticalCount, result.SeriousCount, result.ModerateCount, result.MinorCount,
@@ -68,10 +85,34 @@ public class AccessibilityController : UmbracoApiController
         }
         catch (HttpRequestException ex)
         {
+            if (emitTelemetry)
+            {
+                _ = _telemetryService.TrackEventAsync(new AccessibilityTelemetryEvent
+                {
+                    EventName = "scan_failed",
+                    WcagLevel = wcagLevel.ToString(),
+                    Success = false,
+                    DurationMs = (int)timer.ElapsedMilliseconds,
+                    PagesScanned = 1,
+                    ErrorCode = "html_fetch_failed"
+                });
+            }
             return StatusCode(502, new { error = $"Failed to fetch page HTML: {ex.Message}", url });
         }
         catch (TaskCanceledException)
         {
+            if (emitTelemetry)
+            {
+                _ = _telemetryService.TrackEventAsync(new AccessibilityTelemetryEvent
+                {
+                    EventName = "scan_failed",
+                    WcagLevel = wcagLevel.ToString(),
+                    Success = false,
+                    DurationMs = (int)timer.ElapsedMilliseconds,
+                    PagesScanned = 1,
+                    ErrorCode = "scan_timeout"
+                });
+            }
             return StatusCode(504, new { error = "Request to fetch page HTML timed out.", url });
         }
     }
@@ -105,6 +146,7 @@ public class AccessibilityController : UmbracoApiController
     [HttpPost]
     public async Task<IActionResult> RunAudit(Guid nodeKey, string level = "AA")
     {
+        var timer = Stopwatch.StartNew();
         if (!Enum.TryParse<WcagLevel>(level, ignoreCase: true, out var wcagLevel))
             return BadRequest(new { error = $"Invalid WCAG level: {level}. Use A, AA, or AAA." });
 
@@ -217,6 +259,15 @@ public class AccessibilityController : UmbracoApiController
             ScannedAt = DateTime.UtcNow
         };
         _resultStore.SaveAudit(auditDto);
+        _ = _telemetryService.TrackEventAsync(new AccessibilityTelemetryEvent
+        {
+            EventName = "audit_completed",
+            WcagLevel = wcagLevel.ToString(),
+            Success = true,
+            DurationMs = (int)timer.ElapsedMilliseconds,
+            PagesScanned = scannedCount,
+            AverageScore = averageScore
+        });
 
         return Ok(responseData);
     }
@@ -366,6 +417,15 @@ public class AccessibilityController : UmbracoApiController
             ScannedAt = DateTime.UtcNow
         };
         _resultStore.SaveAudit(auditDto);
+        _ = _telemetryService.TrackEventAsync(new AccessibilityTelemetryEvent
+        {
+            EventName = "audit_completed",
+            WcagLevel = request.WcagLevel,
+            Success = true,
+            DurationMs = request.DurationMs,
+            PagesScanned = request.TotalPages,
+            AverageScore = request.AverageScore
+        });
 
         return Ok(new { success = true });
     }
@@ -384,6 +444,104 @@ public class AccessibilityController : UmbracoApiController
             expiresAt = info.ExpiresAt,
             validationError = info.ValidationError
         });
+    }
+
+    [HttpGet]
+    public IActionResult GetTelemetrySettings()
+    {
+        var enabledRaw = _resultStore.GetSetting("TelemetryEnabled");
+        var acknowledgedRaw = _resultStore.GetSetting("TelemetryAcknowledged");
+
+        var enabled = !bool.TryParse(enabledRaw, out var parsedEnabled) || parsedEnabled;
+        var acknowledged = bool.TryParse(acknowledgedRaw, out var parsedAcknowledged) && parsedAcknowledged;
+
+        return Ok(new
+        {
+            enabled,
+            acknowledged
+        });
+    }
+
+    [HttpPost]
+    public IActionResult SaveTelemetrySettings([FromBody] SaveTelemetrySettingsRequest request)
+    {
+        if (request == null)
+            return BadRequest(new { error = "Request body is required." });
+
+        var enabled = request.Enabled ?? true;
+        _resultStore.SaveSetting("TelemetryEnabled", enabled ? "true" : "false");
+
+        if (request.Acknowledged.HasValue)
+        {
+            _resultStore.SaveSetting("TelemetryAcknowledged", request.Acknowledged.Value ? "true" : "false");
+        }
+
+        return Ok(new { success = true });
+    }
+
+    [HttpPost]
+    public IActionResult TrackVisualCheckFailure([FromBody] TrackVisualCheckFailureRequest? request)
+    {
+        var errorCode = string.IsNullOrWhiteSpace(request?.ErrorCode)
+            ? "visual_check_failed"
+            : request!.ErrorCode!.Trim();
+
+        _ = _telemetryService.TrackEventAsync(new AccessibilityTelemetryEvent
+        {
+            EventName = "visual_check_failed",
+            Success = false,
+            ErrorCode = errorCode
+        });
+
+        return Ok(new { success = true });
+    }
+
+    [HttpPost]
+    public IActionResult TrackScanCompleted([FromBody] TrackScanTelemetryRequest? request)
+    {
+        var score = request?.Score;
+        if (score.HasValue)
+            score = Math.Clamp(score.Value, 0, 100);
+
+        var durationMs = request?.DurationMs;
+        if (durationMs.HasValue && durationMs.Value < 0)
+            durationMs = null;
+
+        _ = _telemetryService.TrackEventAsync(new AccessibilityTelemetryEvent
+        {
+            EventName = "scan_completed",
+            WcagLevel = NormalizeWcagLevel(request?.WcagLevel),
+            Success = true,
+            PagesScanned = 1,
+            Score = score,
+            DurationMs = durationMs
+        });
+
+        return Ok(new { success = true });
+    }
+
+    [HttpPost]
+    public IActionResult TrackScanFailed([FromBody] TrackScanTelemetryRequest? request)
+    {
+        var durationMs = request?.DurationMs;
+        if (durationMs.HasValue && durationMs.Value < 0)
+            durationMs = null;
+
+        var errorCode = string.IsNullOrWhiteSpace(request?.ErrorCode)
+            ? "scan_failed"
+            : request!.ErrorCode!.Trim();
+
+        _ = _telemetryService.TrackEventAsync(new AccessibilityTelemetryEvent
+        {
+            EventName = "scan_failed",
+            WcagLevel = NormalizeWcagLevel(request?.WcagLevel),
+            Success = false,
+            PagesScanned = 1,
+            DurationMs = durationMs,
+            ErrorCode = errorCode
+        });
+
+        return Ok(new { success = true });
     }
 
     [HttpGet]
@@ -527,4 +685,13 @@ public class AccessibilityController : UmbracoApiController
         minorCount = dto.MinorCount,
         scannedAt = dto.ScannedAt
     };
+
+    private static string? NormalizeWcagLevel(string? level)
+    {
+        if (string.IsNullOrWhiteSpace(level))
+            return null;
+
+        var normalized = level.Trim().ToUpperInvariant();
+        return normalized is "A" or "AA" or "AAA" ? normalized : null;
+    }
 }
