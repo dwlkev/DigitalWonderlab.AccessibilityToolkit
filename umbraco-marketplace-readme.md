@@ -30,9 +30,12 @@ An Umbraco backoffice package that adds an **Accessibility** tab to every conten
 ## Compatibility
 - Umbraco 17+
 - .NET 10.0
+- Works on Umbraco Cloud, Azure App Service, and all standard hosting environments
+- Lightweight — no headless browsers, no server-side binaries, no additional infrastructure
 
 ## Installation
 - Install via NuGet https://www.nuget.org/packages/DigitalWonderlab.AccessibilityToolkit/latest
+- No configuration required — install, restart, and start scanning
 - Navigate to any content page and click the Accessibility tab
 
 ## Current Release Notes

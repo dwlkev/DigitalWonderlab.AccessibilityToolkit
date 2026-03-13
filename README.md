@@ -59,6 +59,8 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 
 - Umbraco 17+
 - .NET 10.0
+- Compatible with Umbraco Cloud, Azure App Service, and all standard hosting environments
+- No external dependencies — no headless browsers, no server-side binaries, no additional infrastructure required
 
 ## Installation
 
@@ -70,7 +72,7 @@ dotnet add package DigitalWonderlab.AccessibilityToolkit
 
 Or search for `DigitalWonderlab.AccessibilityToolkit` in the NuGet Package Manager.
 
-No additional configuration required. The package registers itself automatically via an Umbraco composer and creates its database tables on startup.
+No additional configuration required. The package registers itself automatically via an Umbraco composer and creates its database tables on startup. Install, restart, and start scanning — nothing else to set up.
 
 ## Usage
 

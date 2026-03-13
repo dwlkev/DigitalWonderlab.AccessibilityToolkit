@@ -54,6 +54,7 @@ public class AccessibilityTelemetryService : IAccessibilityTelemetryService
                 PackageVersion = GetPackageVersion(),
                 UmbracoVersion = GetUmbracoVersion(),
                 SiteIdHash = GetSiteIdHash(),
+                Locale = GetRequestLocale(),
                 DurationMs = telemetryEvent.DurationMs,
                 PagesScanned = telemetryEvent.PagesScanned,
                 Score = telemetryEvent.Score,
@@ -108,6 +109,17 @@ public class AccessibilityTelemetryService : IAccessibilityTelemetryService
 
     private static string? GetUmbracoVersion() => typeof(Constants).Assembly.GetName().Version?.ToString();
 
+    private string? GetRequestLocale()
+    {
+        var header = _httpContextAccessor.HttpContext?.Request?.Headers["Accept-Language"].ToString();
+        if (string.IsNullOrWhiteSpace(header))
+            return null;
+
+        // Take just the primary language tag (e.g. "en-GB" from "en-GB,en;q=0.9,fr;q=0.8")
+        var primary = header.Split(',')[0].Trim();
+        return primary.Length > 0 && primary.Length <= 20 ? primary : null;
+    }
+
     private string? GetSiteIdHash()
     {
         var host = _httpContextAccessor.HttpContext?.Request?.Host.Host;
@@ -138,6 +150,7 @@ public class AccessibilityTelemetryService : IAccessibilityTelemetryService
         public string? PackageVersion { get; set; }
         public string? UmbracoVersion { get; set; }
         public string? SiteIdHash { get; set; }
+        public string? Locale { get; set; }
         public int? DurationMs { get; set; }
         public int? PagesScanned { get; set; }
         public int? Score { get; set; }
