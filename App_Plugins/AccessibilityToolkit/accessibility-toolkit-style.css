@@ -859,9 +859,45 @@ details.a11y-faq-item p {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
     border: none;
     background: transparent;
     padding: 0;
+}
+
+/* Audit summary export buttons (larger versions of table buttons) */
+.a11y-audit-summary-report-btn {
+    background: none;
+    border: 1px solid #7c3aed;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 6px 18px;
+    font-size: 0.9em;
+    color: #7c3aed;
+    font-weight: 600;
+    transition: background 0.2s, color 0.2s;
+}
+
+.a11y-audit-summary-report-btn:hover {
+    background: #7c3aed;
+    color: white;
+}
+
+.a11y-audit-summary-export-btn {
+    background: none;
+    border: 1px solid #2563eb;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 6px 18px;
+    font-size: 0.9em;
+    color: #2563eb;
+    font-weight: 600;
+    transition: background 0.2s, color 0.2s;
+}
+
+.a11y-audit-summary-export-btn:hover {
+    background: #2563eb;
+    color: white;
 }
 
 /* Page history (workspace view) */

@@ -4,7 +4,7 @@
     "Name": "Digital Wonderlab",
     "Description": "As a proud Certified B Corporation\u00ae, we are passionate about amplifying the voices and visions of purpose-driven start-ups, SMEs, not-for-profits, and global enterprises.",
     "Url": "https://digitalwonderlab.com",
-    "ImageUrl": "https://i.imgur.com/jDN3Knz.png",
+    "ImageUrl": "https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/dwl-marketplace.png",
     "Contributors": [
       {
         "Name": "Kevin Triggle"
@@ -17,7 +17,28 @@
   "Description": "Accessibility Toolkit adds page-level and site-level WCAG accessibility auditing to Umbraco backoffice: 37 checks (A/AA/AAA), scored results, visual contrast checks with preview snippets, history, and export-ready reports.",
   "LicenseTypes": [ "Free" ],
   "PackageType": "Package",
-  "Screenshots": [],
+  "Screenshots": [
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-page-scan.jpg",
+      "Caption": "Accessibility tab on a content page showing score gauge, issue breakdown, and recommendations"
+    },
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-page-history.jpg",
+      "Caption": "Page-level recent scan reports and audit history"
+    },
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-report-scan.jpg",
+      "Caption": "Site audit results with summary cards and per-page breakdown"
+    },
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-site-audit-history.jpg",
+      "Caption": "Dashboard with recent scan reports and site audit history"
+    },
+    {
+      "ImageUrl": "https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-report.jpg",
+      "Caption": "Exportable print-to-PDF report with comprehensive audit breakdown"
+    }
+  ],
   "Tags": [ "Accessibility", "WCAG", "Editor Tools", "Content Management", "Audit", "Compliance" ],
   "Title": "Accessibility Toolkit",
   "VersionDependencyMode": "SemVer"

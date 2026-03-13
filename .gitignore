@@ -21,3 +21,4 @@ Thumbs.db
 /publish-nuget.sh
 /.claude/settings.local.json
 /Planning
+/pp.xml

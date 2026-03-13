@@ -2,6 +2,20 @@
 
 An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility checking to your content workflow. Editors can run checks on individual pages or audit entire site sections, with instant scored reports, scan history, and CSV exports.
 
+## Screenshots
+
+| Page Scan | Scan History |
+|---|---|
+| ![Page scan](screenshots/accessibility-page-scan.jpg) | ![Scan history](screenshots/accessibility-page-history.jpg) |
+
+| Scan Report | Site Audit History |
+|---|---|
+| ![Scan report](screenshots/accessibility-report-scan.jpg) | ![Audit history](screenshots/accessibility-site-audit-history.jpg) |
+
+| Printable Report |
+|---|
+| ![Printable report](screenshots/accessibility-report.jpg) |
+
 ## Features
 
 ### Page-Level Checks
@@ -134,54 +148,13 @@ Page-level run history (in the content workspace Accessibility tab) also include
 
 ## Configuration
 
-### Licence
-
-By default, the package runs in **Free** mode with visual checks enabled. You can override licence metadata and feature state via `appsettings.json`:
-
-```json
-{
-  "AccessibilityToolkit": {
-    "Licensing": {
-      "LicenseType": "Free",
-      "Status": "Active",
-      "Domain": "*",
-      "ExpiresAt": null
-    },
-    "VisualChecks": {
-      "Enabled": true
-    }
-  }
-}
-```
-
-`GetFeatures` returns `licenseType`, `status`, `expiresAt`, and `isProEnabled` for UI/runtime gating.
-
-Current note: licensing is configuration-driven in this release line. Signed key validation and revocation are planned but not yet implemented.
+No configuration is required. The package works out of the box with all features enabled.
 
 ### Telemetry
 
-Anonymous telemetry is available and opt-out via the dashboard Settings tab.
+The package collects anonymous usage telemetry to help improve the product. This is opt-out via the **Settings** tab on the dashboard.
 
-Telemetry is zero-config by default and posts to the Digital Wonderlab telemetry endpoint automatically.
-
-Optional override (self-hosted endpoint) in `appsettings.json`:
-
-```json
-{
-  "AccessibilityToolkit": {
-    "Telemetry": {
-      "Enabled": true,
-      "Endpoint": "https://your-api.azurewebsites.net/api/telemetry/events",
-      "TimeoutMs": 3000
-    }
-  }
-}
-```
-
-Behavior:
-- User setting default is enabled unless explicitly disabled in Settings
-- No page URLs or page content are sent
-- Sent events include scan/audit outcomes and visual check failure signals with anonymized site hash
+No page URLs, page content, or personally identifiable information is collected. Telemetry events include scan and audit outcomes (scores, durations, pass/fail) with an anonymised site hash.
 
 ### Audit Exclusions
 
@@ -190,34 +163,6 @@ You can exclude specific document types and individual pages from site audits vi
 ## How It Works
 
 The tool fetches the published HTML of each page server-side using `HttpClient`, parses it with HtmlAgilityPack, and runs 37 rule-based checks against the DOM. After the server-side analysis, visual checks run client-side in a hidden iframe using the editor's browser to detect computed colour contrast issues against real rendered backgrounds. Results are stored in the database (`dwAccessibilityResults` for per-page scans, `dwAccessibilityAudits` for full site audits) so history and re-exports are always available.
-
-## API Endpoints
-
-All endpoints are under `/umbraco/AccessibilityToolkit/Accessibility/` and require backoffice authentication:
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `Check?nodeKey={guid}&level=AA` | Run accessibility check on a single page |
-| GET | `GetHistory?nodeKey={guid}` | Get scan history for a specific page |
-| POST | `UpdateResult?id={int}` | Update an existing page result (used after client visual merge) |
-| GET | `GetRecentHistory?count=20` | Get recent page-level scans |
-| DELETE | `DeleteHistory?id={int}` | Delete a scan history entry |
-| POST | `RunAudit?nodeKey={guid}&level=AA` | Run audit on a node and all descendants |
-| GET | `GetDescendantPages?nodeKey={guid}` | Get all descendant pages for a content node |
-| POST | `SaveAudit` | Save an audit record (used by client-side audit flow) |
-| GET | `GetRecentAudits?count=20` | Get recent audit summaries |
-| GET | `ExportAudit?id={int}` | Get full audit results JSON for re-export |
-| DELETE | `DeleteAudit?id={int}` | Delete an audit record |
-| GET | `GetFeatures` | Get licence status and feature flags |
-| GET | `GetTelemetrySettings` | Get telemetry preference state (enabled/acknowledged) |
-| POST | `SaveTelemetrySettings` | Save telemetry preference state |
-| POST | `TrackVisualCheckFailure` | Record client-side visual check failure signal |
-| GET | `GetExclusions` | Get excluded document types and pages |
-| POST | `SaveExclusions` | Save exclusion settings |
-| GET | `GetDocumentTypes` | Get all non-element document types |
-| GET | `GetNodeName?nodeKey={guid}` | Resolve a content node's name |
-| GET | `GetPageUrl?nodeKey={guid}` | Resolve a content node's published URL |
-| POST | `ClearAllData` | Delete all scan results and audit history |
 
 ## Issues / Suggestions
 

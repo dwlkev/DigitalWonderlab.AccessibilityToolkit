@@ -1226,7 +1226,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         bodyHtml += `</div>`;
 
         bodyHtml += `
-            <div class="report-services-cta">
+            <div class="report-services-cta" id="report-cta">
+                <button class="report-cta-dismiss" onclick="this.parentElement.remove()" title="Dismiss">&times;</button>
                 <strong>Need help fixing these issues?</strong>
                 <span>Book a manual accessibility audit and remediation plan from Digital Wonderlab.</span>
                 <a href="${esc(this.#servicesUrl)}" target="_blank" rel="noopener">Contact our accessibility team</a>
@@ -1425,10 +1426,12 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             .report-score-ok { background: #fffbeb; color: #d97706; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
             .report-score-poor { background: #fef2f2; color: #dc2626; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
             .report-impact-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
-            .report-services-cta { margin: 14px 0 18px; padding: 10px 12px; border-radius: 8px; border: 1px solid #dbeafe; background: #eff6ff; display: flex; gap: 8px; flex-direction: column; }
+            .report-services-cta { margin: 14px 0 18px; padding: 10px 12px; border-radius: 8px; border: 1px solid #dbeafe; background: #eff6ff; display: flex; gap: 8px; flex-direction: column; position: relative; }
             .report-services-cta strong { color: #1e3a8a; }
             .report-services-cta span { color: #1f2937; font-size: 0.92em; }
             .report-services-cta a { font-weight: 600; }
+            .report-cta-dismiss { position: absolute; top: 6px; right: 8px; background: none; border: none; font-size: 18px; color: #93c5fd; cursor: pointer; padding: 0 4px; line-height: 1; }
+            .report-cta-dismiss:hover { color: #1e3a8a; }
             .report-table { width: 100%; border-collapse: collapse; font-size: 0.82em; margin-bottom: 20px; }
             .report-table th { background: #f9fafb; border-bottom: 2px solid #e5e7eb; text-align: left; padding: 8px 6px; font-weight: 700; text-transform: uppercase; font-size: 0.8em; }
             .report-table td { padding: 8px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }

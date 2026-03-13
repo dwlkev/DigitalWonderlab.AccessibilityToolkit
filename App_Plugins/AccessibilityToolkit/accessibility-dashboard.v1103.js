@@ -1156,12 +1156,16 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     <span class="a11y-dashboard-stat-label">Total Issues</span>
                 </div>
                 <div class="a11y-dashboard-stat a11y-dashboard-stat-export">
-                    <uui-button label="Export CSV" id="a11y-audit-export-btn" look="secondary"></uui-button>
+                    <button class="a11y-audit-summary-report-btn" id="a11y-audit-report-btn">Export</button>
+                    <button class="a11y-audit-summary-export-btn" id="a11y-audit-export-btn">CSV</button>
                 </div>
             </div>
         `;
 
-        // Bind export button
+        // Bind export buttons
+        const reportBtn = this.shadowRoot.getElementById("a11y-audit-report-btn");
+        reportBtn?.addEventListener("click", () => this.#openAuditReportFromData(data));
+
         const exportBtn = this.shadowRoot.getElementById("a11y-audit-export-btn");
         exportBtn?.addEventListener("click", () => this.#exportAuditCsv(data));
 
@@ -1256,6 +1260,20 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
 
     // --- Audit Print Report ---
 
+    #openAuditReportFromData(data) {
+        const nodeDisplay = this.shadowRoot.getElementById("a11y-audit-node-display");
+        const rootName = nodeDisplay?.textContent || "Site";
+        const levelSelect = this.shadowRoot.getElementById("a11y-audit-level");
+        const level = levelSelect?.value || "AA";
+        const date = new Date().toLocaleDateString();
+
+        const win = this.#openReportWindow(`Accessibility Audit Report - ${rootName}`);
+        if (!win) return;
+
+        const bodyHtml = this.#buildAuditReportHtml(data, rootName, date, level);
+        this.#populateReportWindow(win, bodyHtml);
+    }
+
     async #openAuditReport(id) {
         // Open popup immediately with loading state
         const audit = this.#auditHistory.find(a => a.id === id);
@@ -1272,6 +1290,23 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             const date = audit ? new Date(audit.scannedAt).toLocaleDateString() : new Date().toLocaleDateString();
             const level = audit?.wcagLevel || "AA";
 
+            const bodyHtml = this.#buildAuditReportHtml(data, rootName, date, level);
+            this.#populateReportWindow(win, bodyHtml);
+
+        } catch (err) {
+            if (win && !win.closed) {
+                const errDiv = win.document.getElementById("report-loading");
+                if (errDiv) {
+                    errDiv.innerHTML = `<p style="color:#dc2626;font-size:1.1em;">Failed to load report: ${this.#escapeHtml(err.message)}</p>`;
+                }
+            }
+            this.#notificationContext?.peek("danger", {
+                data: { headline: "Report failed", message: err.message },
+            });
+        }
+    }
+
+    #buildAuditReportHtml(data, rootName, date, level) {
             const hasIssueDetail = data.pages?.some(p => p.issues && p.issues.length > 0);
             const esc = (s) => this.#escapeHtml(s);
 
@@ -1307,9 +1342,10 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                 </div>
             `;
 
-            // Support CTA
+            // Support CTA (dismissable before print)
             bodyHtml += `
-                <div class="report-services-cta">
+                <div class="report-services-cta" id="report-cta">
+                    <button class="report-cta-dismiss" onclick="this.parentElement.remove()" title="Dismiss">&times;</button>
                     <strong>Need help fixing these issues?</strong>
                     <span>Book a manual accessibility audit and remediation plan from Digital Wonderlab.</span>
                     <a href="${this.#escapeHtml(this.#servicesUrl)}" target="_blank" rel="noopener">Contact our accessibility team</a>
@@ -1521,20 +1557,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                 // Screenshots are now inline in issue tables via issue.screenshot
             }
 
-            // Write content into the already-open window
-            this.#populateReportWindow(win, bodyHtml);
-
-        } catch (err) {
-            if (win && !win.closed) {
-                const errDiv = win.document.getElementById("report-loading");
-                if (errDiv) {
-                    errDiv.innerHTML = `<p style="color:#dc2626;font-size:1.1em;">Failed to load report: ${this.#escapeHtml(err.message)}</p>`;
-                }
-            }
-            this.#notificationContext?.peek("danger", {
-                data: { headline: "Report failed", message: err.message },
-            });
-        }
+            return bodyHtml;
     }
 
     /** Build element preview HTML for a single issue */
@@ -1763,10 +1786,12 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             .report-score-ok { background: #fffbeb; color: #d97706; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
             .report-score-poor { background: #fef2f2; color: #dc2626; padding: 2px 10px; border-radius: 4px; font-weight: 700; }
             .report-impact-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
-            .report-services-cta { margin: 14px 0 18px; padding: 10px 12px; border-radius: 8px; border: 1px solid #dbeafe; background: #eff6ff; display: flex; gap: 8px; flex-direction: column; }
+            .report-services-cta { margin: 14px 0 18px; padding: 10px 12px; border-radius: 8px; border: 1px solid #dbeafe; background: #eff6ff; display: flex; gap: 8px; flex-direction: column; position: relative; }
             .report-services-cta strong { color: #1e3a8a; }
             .report-services-cta span { color: #1f2937; font-size: 0.92em; }
             .report-services-cta a { font-weight: 600; }
+            .report-cta-dismiss { position: absolute; top: 6px; right: 8px; background: none; border: none; font-size: 18px; color: #93c5fd; cursor: pointer; padding: 0 4px; line-height: 1; }
+            .report-cta-dismiss:hover { color: #1e3a8a; }
             .report-table { width: 100%; border-collapse: collapse; font-size: 0.82em; margin-bottom: 20px; }
             .report-table th { background: #f9fafb; border-bottom: 2px solid #e5e7eb; text-align: left; padding: 8px 6px; font-weight: 700; text-transform: uppercase; font-size: 0.8em; }
             .report-table td { padding: 8px 6px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }

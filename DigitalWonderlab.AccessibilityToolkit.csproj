@@ -7,7 +7,7 @@
 		<!-- NuGet metadata -->
 		<IsPackable>true</IsPackable>
 		<PackageId>DigitalWonderlab.AccessibilityToolkit</PackageId>
-		<Version>1.10.14</Version>
+		<Version>1.10.15</Version>
 		<Authors>Digital Wonderlab</Authors>
 		<Company>Digital Wonderlab</Company>
 		<Description>Accessibility Toolkit for Umbraco 17+. Adds a workspace view tab to content pages that fetches published HTML, runs WCAG checks, and displays a scored report with CSV export.</Description>
@@ -50,6 +50,16 @@
 	<ItemGroup>
 		<None Include="README.md" Pack="true" PackagePath="\" />
 		<None Include="icon.png" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<!-- Exclude non-shipping folders from MSBuild globbing -->
+	<ItemGroup>
+		<None Remove="_testingscreenshots\**" />
+		<Content Remove="_testingscreenshots\**" />
+		<Compile Remove="_testingscreenshots\**" />
+		<EmbeddedResource Remove="_testingscreenshots\**" />
+		<None Remove="screenshots\**" />
+		<Content Remove="screenshots\**" />
 	</ItemGroup>
 
 </Project>
