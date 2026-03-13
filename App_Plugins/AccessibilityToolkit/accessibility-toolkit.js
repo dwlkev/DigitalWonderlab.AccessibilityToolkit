@@ -110,6 +110,9 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                             <div class="a11y-impact-badge a11y-impact-minor">
                                 <span id="a11y-count-minor">0</span> Minor
                             </div>
+                            <div class="a11y-impact-badge a11y-impact-info">
+                                <span id="a11y-count-info">0</span> Info
+                            </div>
                         </div>
                         <div class="a11y-meta">
                             <span id="a11y-checks-run">0 checks run</span>
@@ -131,6 +134,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                                 <option value="serious">Serious</option>
                                 <option value="moderate">Moderate</option>
                                 <option value="minor">Minor</option>
+                                <option value="info">Info</option>
                             </select>
                             <select id="a11y-filter-category">
                                 <option value="">All Categories</option>
@@ -395,10 +399,10 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
 
     /** Calculate score matching server-side algorithm (exponential decay with per-rule caps) */
     #calculateScore(issues) {
-        const weights = { critical: 10, serious: 5, moderate: 2, minor: 1 };
+        const weights = { critical: 10, serious: 5, moderate: 2, minor: 1, info: 0 };
         const byRule = {};
         for (const issue of issues) {
-            const w = weights[issue.impact] || 1;
+            const w = weights[issue.impact] ?? 1;
             byRule[issue.ruleId] = (byRule[issue.ruleId] || 0) + w;
         }
         let totalDeduction = 0;
@@ -424,6 +428,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         result.seriousCount = result.issues.filter(i => i.impact === "serious").length;
         result.moderateCount = result.issues.filter(i => i.impact === "moderate").length;
         result.minorCount = result.issues.filter(i => i.impact === "minor").length;
+        result.infoCount = result.issues.filter(i => i.impact === "info").length;
 
         // Update categorySummary
         for (const vi of visualIssues) {
@@ -620,6 +625,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         this.shadowRoot.getElementById("a11y-count-serious").textContent = result.seriousCount;
         this.shadowRoot.getElementById("a11y-count-moderate").textContent = result.moderateCount;
         this.shadowRoot.getElementById("a11y-count-minor").textContent = result.minorCount;
+        const infoEl = this.shadowRoot.getElementById("a11y-count-info");
+        if (infoEl) infoEl.textContent = result.infoCount || 0;
 
         this.shadowRoot.getElementById("a11y-checks-run").textContent = `${result.totalChecks} checks run`;
         const previous = this.#pageHistory.find((h) => h.id !== result.resultId);
@@ -821,7 +828,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     #sortBy(field) {
         if (!this.#result || !this.#result.issues) return;
 
-        const impactOrder = { critical: 0, serious: 1, moderate: 2, minor: 3 };
+        const impactOrder = { critical: 0, serious: 1, moderate: 2, minor: 3, info: 4 };
 
         this.#result.issues.sort((a, b) => {
             if (field === "impact") {
@@ -894,10 +901,33 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             const style = win.getComputedStyle(el);
             if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
 
+            // Skip elements that are effectively hidden (zero size, off-screen, or inside
+            // collapsed containers like Bootstrap offcanvas/modal/collapse without JS)
+            if (el.offsetWidth === 0 && el.offsetHeight === 0) continue;
+            if (this.#isInsideHiddenContainer(el)) continue;
+
             const fgColor = this.#parseRgba(style.color);
             if (!fgColor) continue;
 
             const bgColor = this.#getEffectiveBackground(el, win);
+            if (!bgColor) {
+                // Background uses a gradient or image — can't compute contrast automatically.
+                // Log as info so the editor knows to verify manually.
+                issues.push({
+                    ruleId: "visual-color-contrast",
+                    description: "Text colour contrast could not be automatically verified because a parent element uses a background gradient or image. Please check this element manually.",
+                    category: "Color",
+                    level: "AA",
+                    wcagCriterion: "1.4.3",
+                    impact: "info",
+                    element: this.#truncateHtml(el),
+                    selector: this.#buildCssSelector(el),
+                    recommendation: "Verify that the text has sufficient contrast against the background gradient or image (4.5:1 for normal text, 3:1 for large text).",
+                    wcagUrl: "https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html",
+                    fgColor: { r: fgColor.r, g: fgColor.g, b: fgColor.b },
+                });
+                continue;
+            }
 
             const ratio = this.#contrastRatio(fgColor, bgColor);
             const fontSize = parseFloat(style.fontSize);
@@ -1031,11 +1061,19 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]), a: match[4] !== undefined ? parseFloat(match[4]) : 1 };
     }
 
+    /** Returns effective background colour, or null if indeterminate
+     *  (gradient, background image, etc. where we can't compute the colour). */
     #getEffectiveBackground(el, win) {
         const layers = [];
         let current = el;
         while (current && current !== el.ownerDocument.documentElement) {
             const style = win.getComputedStyle(current);
+
+            // If a gradient or background image is present we can't determine the
+            // actual colour behind the text — bail out as indeterminate.
+            const bgImage = style.backgroundImage;
+            if (bgImage && bgImage !== "none") return null;
+
             const bg = this.#parseRgba(style.backgroundColor);
             if (bg && bg.a > 0) {
                 layers.push(bg);
@@ -1049,6 +1087,24 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             result = this.#alphaComposite(layers[i], result);
         }
         return result;
+    }
+
+    /** Check if element sits inside a container that is visually hidden but not
+     *  CSS-hidden (e.g. Bootstrap offcanvas/modal/collapse without JS running). */
+    #isInsideHiddenContainer(el) {
+        let current = el.parentElement;
+        while (current && current !== el.ownerDocument.body) {
+            const cls = current.className || "";
+            // Bootstrap offcanvas, modal, collapse — hidden when .show is absent
+            if ((cls.includes("offcanvas") || cls.includes("modal") || cls.includes("collapse"))
+                && !cls.includes("show") && !cls.includes("collapsing")) {
+                return true;
+            }
+            // Generic pattern: aria-hidden="true" set by JS frameworks
+            if (current.getAttribute("aria-hidden") === "true") return true;
+            current = current.parentElement;
+        }
+        return false;
     }
 
     #alphaComposite(fg, bg) {
@@ -1234,6 +1290,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         if (result.seriousCount) bodyHtml += `<span class="report-badge-serious">${result.seriousCount} Serious</span>`;
         if (result.moderateCount) bodyHtml += `<span class="report-badge-moderate">${result.moderateCount} Moderate</span>`;
         if (result.minorCount) bodyHtml += `<span class="report-badge-minor">${result.minorCount} Minor</span>`;
+        if (result.infoCount) bodyHtml += `<span class="report-badge-info">${result.infoCount} Info</span>`;
         bodyHtml += `</div>`;
 
         bodyHtml += `
@@ -1452,6 +1509,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             .report-badge-serious { background: #fff7ed; color: #9a3412; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
             .report-badge-moderate { background: #fffbeb; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
             .report-badge-minor { background: #f0fdf4; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
+            .report-badge-info { background: #eff6ff; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: 700; white-space: nowrap; }
             .report-category-chart { margin-bottom: 20px; }
             .report-cat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
             .report-cat-label { width: 120px; font-size: 0.85em; font-weight: 600; text-align: right; flex-shrink: 0; }

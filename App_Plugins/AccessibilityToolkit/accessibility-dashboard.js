@@ -1951,10 +1951,32 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             const style = win.getComputedStyle(el);
             if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
 
+            // Skip elements that are effectively hidden (zero size, off-screen, or inside
+            // collapsed containers like Bootstrap offcanvas/modal/collapse without JS)
+            if (el.offsetWidth === 0 && el.offsetHeight === 0) continue;
+            if (this.#isInsideHiddenContainer(el)) continue;
+
             const fgColor = this.#parseRgba(style.color);
             if (!fgColor) continue;
 
             const bgColor = this.#getEffectiveBackground(el, win);
+            if (!bgColor) {
+                // Background uses a gradient or image — can't compute contrast automatically.
+                issues.push({
+                    ruleId: "visual-color-contrast",
+                    description: "Text colour contrast could not be automatically verified because a parent element uses a background gradient or image. Please check this element manually.",
+                    category: "Color",
+                    level: "AA",
+                    wcagCriterion: "1.4.3",
+                    impact: "info",
+                    element: this.#truncateHtml(el),
+                    selector: this.#buildCssSelector(el),
+                    recommendation: "Verify that the text has sufficient contrast against the background gradient or image (4.5:1 for normal text, 3:1 for large text).",
+                    wcagUrl: "https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html",
+                    fgColor: { r: fgColor.r, g: fgColor.g, b: fgColor.b },
+                });
+                continue;
+            }
             const ratio = this.#contrastRatio(fgColor, bgColor);
             const fontSize = parseFloat(style.fontSize);
             const fontWeight = parseInt(style.fontWeight, 10) || 400;
@@ -2067,11 +2089,19 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         return { r: parseInt(match[1]), g: parseInt(match[2]), b: parseInt(match[3]), a: match[4] !== undefined ? parseFloat(match[4]) : 1 };
     }
 
+    /** Returns effective background colour, or null if indeterminate
+     *  (gradient, background image, etc. where we can't compute the colour). */
     #getEffectiveBackground(el, win) {
         const layers = [];
         let current = el;
         while (current && current !== el.ownerDocument.documentElement) {
             const style = win.getComputedStyle(current);
+
+            // If a gradient or background image is present we can't determine the
+            // actual colour behind the text — bail out as indeterminate.
+            const bgImage = style.backgroundImage;
+            if (bgImage && bgImage !== "none") return null;
+
             const bg = this.#parseRgba(style.backgroundColor);
             if (bg && bg.a > 0) layers.push(bg);
             current = current.parentElement;
@@ -2079,6 +2109,24 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         let result = { r: 255, g: 255, b: 255, a: 1 };
         for (let i = layers.length - 1; i >= 0; i--) result = this.#alphaComposite(layers[i], result);
         return result;
+    }
+
+    /** Check if element sits inside a container that is visually hidden but not
+     *  CSS-hidden (e.g. Bootstrap offcanvas/modal/collapse without JS running). */
+    #isInsideHiddenContainer(el) {
+        let current = el.parentElement;
+        while (current && current !== el.ownerDocument.body) {
+            const cls = current.className || "";
+            // Bootstrap offcanvas, modal, collapse — hidden when .show is absent
+            if ((cls.includes("offcanvas") || cls.includes("modal") || cls.includes("collapse"))
+                && !cls.includes("show") && !cls.includes("collapsing")) {
+                return true;
+            }
+            // Generic pattern: aria-hidden="true" set by JS frameworks
+            if (current.getAttribute("aria-hidden") === "true") return true;
+            current = current.parentElement;
+        }
+        return false;
     }
 
     #alphaComposite(fg, bg) {
@@ -2178,10 +2226,10 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
 
     /** Calculate score matching server-side algorithm (exponential decay with per-rule caps) */
     #calculateScore(issues) {
-        const weights = { critical: 10, serious: 5, moderate: 2, minor: 1 };
+        const weights = { critical: 10, serious: 5, moderate: 2, minor: 1, info: 0 };
         const byRule = {};
         for (const issue of issues) {
-            const w = weights[issue.impact] || 1;
+            const w = weights[issue.impact] ?? 1;
             byRule[issue.ruleId] = (byRule[issue.ruleId] || 0) + w;
         }
         let totalDeduction = 0;

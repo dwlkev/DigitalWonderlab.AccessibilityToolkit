@@ -13,10 +13,13 @@ public class SemanticHtmlCheck : IAccessibilityCheck
     {
         var issues = new List<AccessibilityIssue>();
 
-        // Check for <main> landmark
-        var mains = document.DocumentNode.SelectNodes("//main");
-        var roleMain = document.DocumentNode.SelectNodes("//*[@role='main']");
-        var mainCount = (mains?.Count ?? 0) + (roleMain?.Count ?? 0);
+        // Check for <main> landmark (deduplicate <main role="main">)
+        var mainNodes = new HashSet<HtmlNode>();
+        foreach (var n in document.DocumentNode.SelectNodes("//main") ?? Enumerable.Empty<HtmlNode>())
+            mainNodes.Add(n);
+        foreach (var n in document.DocumentNode.SelectNodes("//*[@role='main']") ?? Enumerable.Empty<HtmlNode>())
+            mainNodes.Add(n);
+        var mainCount = mainNodes.Count;
 
         if (mainCount == 0)
         {

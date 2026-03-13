@@ -77,6 +77,7 @@ public class AccessibilityAnalyzer : IAccessibilityAnalyzer
                     "serious" => 5,
                     "moderate" => 2,
                     "minor" => 1,
+                    "info" => 0,
                     _ => 1
                 });
                 return Math.Min(ruleDeduction, 25); // cap per rule

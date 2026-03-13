@@ -23,8 +23,15 @@ public class IframeTitleCheck : IAccessibilityCheck
             var ariaLabelledBy = iframe.GetAttributeValue("aria-labelledby", "");
             var ariaHidden = iframe.GetAttributeValue("aria-hidden", "");
 
-            // Skip hidden iframes
+            // Skip hidden iframes (aria-hidden, display:none, visibility:hidden, or zero-size)
             if (ariaHidden == "true") continue;
+            var style = iframe.GetAttributeValue("style", "").ToLowerInvariant();
+            if (style.Contains("display:none") || style.Contains("display: none")
+                || style.Contains("visibility:hidden") || style.Contains("visibility: hidden"))
+                continue;
+            var width = iframe.GetAttributeValue("width", "");
+            var height = iframe.GetAttributeValue("height", "");
+            if (width == "0" && height == "0") continue;
 
             if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(ariaLabel) && string.IsNullOrWhiteSpace(ariaLabelledBy))
             {
