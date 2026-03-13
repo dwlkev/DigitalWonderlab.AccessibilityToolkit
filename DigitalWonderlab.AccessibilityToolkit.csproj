@@ -7,13 +7,13 @@
 		<!-- NuGet metadata -->
 		<IsPackable>true</IsPackable>
 		<PackageId>DigitalWonderlab.AccessibilityToolkit</PackageId>
-		<Version>1.10.17</Version>
+		<Version>1.10.18</Version>
 		<Authors>Digital Wonderlab</Authors>
 		<Company>Digital Wonderlab</Company>
 		<Description>Accessibility Toolkit for Umbraco 17+. Adds a workspace view tab to content pages that fetches published HTML, runs WCAG checks, and displays a scored report with CSV export.</Description>
 		<PackageTags>umbraco;umbraco-cms;accessibility;wcag;a11y;umbraco-marketplace</PackageTags>
-		<RepositoryUrl>https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit</RepositoryUrl>
-		<PackageProjectUrl>https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/dwlkev/AccessibilityToolkit</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/dwlkev/AccessibilityToolkit</PackageProjectUrl>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageIcon>icon.png</PackageIcon>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

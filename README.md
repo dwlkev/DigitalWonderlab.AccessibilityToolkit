@@ -6,15 +6,15 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 
 | Page Scan | Scan History |
 |---|---|
-| ![Page scan](screenshots/accessibility-page-scan.jpg) | ![Scan history](screenshots/accessibility-page-history.jpg) |
+| ![Page scan](https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-page-scan.jpg) | ![Scan history](https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-page-history.jpg) |
 
 | Scan Report | Site Audit History |
 |---|---|
-| ![Scan report](screenshots/accessibility-report-scan.jpg) | ![Audit history](screenshots/accessibility-site-audit-history.jpg) |
+| ![Scan report](https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-report-scan.jpg) | ![Audit history](https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-site-audit-history.jpg) |
 
 | Printable Report |
 |---|
-| ![Printable report](screenshots/accessibility-report.jpg) |
+| ![Printable report](https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-report.jpg) |
 
 ## Features
 
