@@ -120,9 +120,17 @@ public class AccessibilityController : UmbracoApiController
     [HttpGet]
     public IActionResult GetHistory(Guid nodeKey)
     {
-        var history = _resultStore.GetHistoryForNode(nodeKey)
-            .Select(MapToHistoryEntry);
-        return Ok(history);
+        try
+        {
+            var history = _resultStore.GetHistoryForNode(nodeKey)
+                .Select(MapToHistoryEntry);
+            return Ok(history);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "GetHistory failed — table may not exist yet");
+            return Ok(Array.Empty<object>());
+        }
     }
 
     [HttpGet]
@@ -131,9 +139,17 @@ public class AccessibilityController : UmbracoApiController
         if (count < 1) count = 1;
         if (count > 100) count = 100;
 
-        var history = _resultStore.GetRecentResults(count)
-            .Select(MapToHistoryEntry);
-        return Ok(history);
+        try
+        {
+            var history = _resultStore.GetRecentResults(count)
+                .Select(MapToHistoryEntry);
+            return Ok(history);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "GetRecentHistory failed — table may not exist yet");
+            return Ok(Array.Empty<object>());
+        }
     }
 
     [HttpDelete]
@@ -278,19 +294,27 @@ public class AccessibilityController : UmbracoApiController
         if (count < 1) count = 1;
         if (count > 100) count = 100;
 
-        var audits = _resultStore.GetRecentAudits(count)
-            .Select(a => new
-            {
-                id = a.Id,
-                rootNodeKey = a.RootNodeKey,
-                rootNodeName = a.RootNodeName,
-                wcagLevel = a.WcagLevel,
-                totalPages = a.TotalPages,
-                averageScore = a.AverageScore,
-                totalIssues = a.TotalIssues,
-                scannedAt = a.ScannedAt
-            });
-        return Ok(audits);
+        try
+        {
+            var audits = _resultStore.GetRecentAudits(count)
+                .Select(a => new
+                {
+                    id = a.Id,
+                    rootNodeKey = a.RootNodeKey,
+                    rootNodeName = a.RootNodeName,
+                    wcagLevel = a.WcagLevel,
+                    totalPages = a.TotalPages,
+                    averageScore = a.AverageScore,
+                    totalIssues = a.TotalIssues,
+                    scannedAt = a.ScannedAt
+                });
+            return Ok(audits);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "GetRecentAudits failed — table may not exist yet");
+            return Ok(Array.Empty<object>());
+        }
     }
 
     [HttpGet]

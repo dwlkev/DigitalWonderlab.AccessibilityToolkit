@@ -24,7 +24,8 @@ public class AccessibilityResultStore : IAccessibilityResultStore
     {
         using var scope = _scopeProvider.CreateScope(autoComplete: true);
         return scope.Database.Fetch<AccessibilityResultDto>(
-            new Sql("SELECT * FROM dwAccessibilityResults ORDER BY ScannedAt DESC OFFSET 0 ROWS FETCH NEXT @0 ROWS ONLY", count));
+            new Sql("SELECT * FROM dwAccessibilityResults ORDER BY ScannedAt DESC"))
+            .Take(count).ToList();
     }
 
     public AccessibilityResultDto? GetResultById(int id)
@@ -66,7 +67,8 @@ public class AccessibilityResultStore : IAccessibilityResultStore
     {
         using var scope = _scopeProvider.CreateScope(autoComplete: true);
         return scope.Database.Fetch<AccessibilityAuditDto>(
-            new Sql("SELECT Id, RootNodeKey, WcagLevel, TotalPages, AverageScore, TotalIssues, RootNodeName, ScannedAt FROM dwAccessibilityAudits ORDER BY ScannedAt DESC OFFSET 0 ROWS FETCH NEXT @0 ROWS ONLY", count));
+            new Sql("SELECT Id, RootNodeKey, WcagLevel, TotalPages, AverageScore, TotalIssues, RootNodeName, ScannedAt FROM dwAccessibilityAudits ORDER BY ScannedAt DESC"))
+            .Take(count).ToList();
     }
 
     public AccessibilityAuditDto? GetAuditById(int id)
