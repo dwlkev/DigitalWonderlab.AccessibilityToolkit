@@ -43,7 +43,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     #loadStyles() {
         const link = document.createElement("link");
         link.setAttribute("rel", "stylesheet");
-        link.setAttribute("href", "/App_Plugins/AccessibilityToolkit/accessibility-toolkit-style.css");
+        link.setAttribute("href", "/App_Plugins/AccessibilityToolkit/accessibility-toolkit-style.css?v=PACKAGE_VERSION");
         this.shadowRoot.appendChild(link);
     }
 
@@ -393,6 +393,21 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         return "visual_check_failed";
     }
 
+    /** Calculate score matching server-side algorithm (exponential decay with per-rule caps) */
+    #calculateScore(issues) {
+        const weights = { critical: 10, serious: 5, moderate: 2, minor: 1 };
+        const byRule = {};
+        for (const issue of issues) {
+            const w = weights[issue.impact] || 1;
+            byRule[issue.ruleId] = (byRule[issue.ruleId] || 0) + w;
+        }
+        let totalDeduction = 0;
+        for (const ruleId in byRule) {
+            totalDeduction += Math.min(byRule[ruleId], 25);
+        }
+        return Math.round(100 * Math.exp(-totalDeduction / 80));
+    }
+
     /** Merge visual issues into the main result */
     #mergeVisualIssues(visualIssues) {
         const result = this.#result;
@@ -416,12 +431,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             result.categorySummary[cat] = (result.categorySummary[cat] || 0) + 1;
         }
 
-        // Recalculate score (deduct points for visual issues)
-        const totalDeduction = visualIssues.reduce((sum, i) => {
-            const weights = { critical: 5, serious: 3, moderate: 2, minor: 1 };
-            return sum + (weights[i.impact] || 1);
-        }, 0);
-        result.score = Math.max(0, result.score - totalDeduction);
+        // Recalculate score using the same algorithm as the server
+        result.score = this.#calculateScore(result.issues);
     }
 
     /** Persist the visual-augmented result back to the server */

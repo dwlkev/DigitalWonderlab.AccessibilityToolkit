@@ -83,6 +83,6 @@ public class AccessibilityAnalyzer : IAccessibilityAnalyzer
             });
 
         var totalDeduction = deductionsByRule.Values.Sum();
-        return Math.Max(0, 100 - totalDeduction);
+        return (int)Math.Round(100 * Math.Exp(-totalDeduction / 80.0));
     }
 }

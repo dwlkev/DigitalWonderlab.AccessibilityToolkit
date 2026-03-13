@@ -67,13 +67,13 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
     #loadStyles() {
         const link = document.createElement("link");
         link.setAttribute("rel", "stylesheet");
-        link.setAttribute("href", "/App_Plugins/AccessibilityToolkit/accessibility-toolkit-style.css");
+        link.setAttribute("href", "/App_Plugins/AccessibilityToolkit/accessibility-toolkit-style.css?v=PACKAGE_VERSION");
         this.shadowRoot.appendChild(link);
     }
 
     async #loadTemplate() {
         try {
-            const response = await fetch("/App_Plugins/AccessibilityToolkit/accessibility-dashboard-template.html");
+            const response = await fetch("/App_Plugins/AccessibilityToolkit/accessibility-dashboard-template.html?v=PACKAGE_VERSION");
             const html = await response.text();
             const container = document.createElement("div");
             container.innerHTML = html;
@@ -998,6 +998,7 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     }
 
                     const result = await checkResp.json();
+                    const savedResultId = result.resultId;
                     const pageResult = {
                         nodeKey: page.nodeKey,
                         name: page.name,
@@ -1017,7 +1018,13 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                         progressText.textContent = `Visual checks for page ${i + 1}: ${page.name}...`;
                         try {
                             const visualIssues = await this.#runVisualChecksOnPage(pageResult.url);
-                            this.#mergeVisualIssuesIntoResult(pageResult, visualIssues);
+                            if (visualIssues.length > 0) {
+                                this.#mergeVisualIssuesIntoResult(pageResult, visualIssues);
+                                // Persist visual-merged result to DB so Recent Reports matches
+                                if (savedResultId) {
+                                    await this.#persistMergedResult(savedResultId, pageResult);
+                                }
+                            }
                         } catch (vErr) {
                             await this.#trackVisualCheckFailure(this.#classifyVisualCheckError(vErr));
                         }
@@ -2135,11 +2142,53 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         pageResult.seriousCount = pageResult.issues.filter(i => i.impact === "serious").length;
         pageResult.moderateCount = pageResult.issues.filter(i => i.impact === "moderate").length;
         pageResult.minorCount = pageResult.issues.filter(i => i.impact === "minor").length;
-        const totalDeduction = visualIssues.reduce((sum, i) => {
-            const weights = { critical: 5, serious: 3, moderate: 2, minor: 1 };
-            return sum + (weights[i.impact] || 1);
-        }, 0);
-        pageResult.score = Math.max(0, pageResult.score - totalDeduction);
+        pageResult.score = this.#calculateScore(pageResult.issues);
+    }
+
+    /** Persist visual-merged result back to the DB so Recent Reports stays consistent */
+    async #persistMergedResult(resultId, pageResult) {
+        try {
+            const issuesForStorage = (pageResult.issues || []).map(i => {
+                if (i.screenshot) {
+                    const { screenshot, ...rest } = i;
+                    return { ...rest, screenshotStatus: "stored-separately" };
+                }
+                return i;
+            });
+            const storageResult = { ...pageResult, issues: issuesForStorage };
+            delete storageResult.resultId;
+
+            await fetch(`/umbraco/AccessibilityToolkit/Accessibility/UpdateResult?id=${resultId}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    score: pageResult.score,
+                    totalIssues: pageResult.totalIssues,
+                    criticalCount: pageResult.criticalCount,
+                    seriousCount: pageResult.seriousCount,
+                    moderateCount: pageResult.moderateCount,
+                    minorCount: pageResult.minorCount,
+                    resultJson: JSON.stringify(storageResult)
+                }),
+            });
+        } catch {
+            // Never block audits on persist failures.
+        }
+    }
+
+    /** Calculate score matching server-side algorithm (exponential decay with per-rule caps) */
+    #calculateScore(issues) {
+        const weights = { critical: 10, serious: 5, moderate: 2, minor: 1 };
+        const byRule = {};
+        for (const issue of issues) {
+            const w = weights[issue.impact] || 1;
+            byRule[issue.ruleId] = (byRule[issue.ruleId] || 0) + w;
+        }
+        let totalDeduction = 0;
+        for (const ruleId in byRule) {
+            totalDeduction += Math.min(byRule[ruleId], 25);
+        }
+        return Math.round(100 * Math.exp(-totalDeduction / 80));
     }
 
     // --- Helpers ---

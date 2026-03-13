@@ -22,3 +22,5 @@ Thumbs.db
 /.claude/settings.local.json
 /Planning
 /pp.xml
+/CLAUDE.md
+/build/stamp-version.ps1

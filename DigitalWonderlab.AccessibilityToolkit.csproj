@@ -7,7 +7,7 @@
 		<!-- NuGet metadata -->
 		<IsPackable>true</IsPackable>
 		<PackageId>DigitalWonderlab.AccessibilityToolkit</PackageId>
-		<Version>1.10.20</Version>
+		<Version>1.10.24</Version>
 		<Authors>Digital Wonderlab</Authors>
 		<Company>Digital Wonderlab</Company>
 		<Description>Comprehensive WCAG 2.1 accessibility auditing for Umbraco 17+. 37 checks across Level A, AA, and AAA with scored results, scan history, site-wide audits, printable reports, and CSV export. Lightweight with no external dependencies — works on Umbraco Cloud and all hosting environments.</Description>
@@ -51,6 +51,14 @@
 		<None Include="README.md" Pack="true" PackagePath="\" />
 		<None Include="icon.png" Pack="true" PackagePath="\" />
 	</ItemGroup>
+
+	<!-- Auto cache-bust: stamp PACKAGE_VERSION token with actual version at build, restore after -->
+	<Target Name="StampCacheBuster" BeforeTargets="BeforeBuild">
+		<Exec Command="powershell -NoProfile -File &quot;$(MSBuildProjectDirectory)\build\stamp-version.ps1&quot; -Version $(Version) -PluginDir &quot;$(MSBuildProjectDirectory)\App_Plugins\AccessibilityToolkit&quot;" />
+	</Target>
+	<Target Name="RestoreCacheBusterToken" AfterTargets="AfterBuild;Pack">
+		<Exec Command="powershell -NoProfile -File &quot;$(MSBuildProjectDirectory)\build\stamp-version.ps1&quot; -Version $(Version) -PluginDir &quot;$(MSBuildProjectDirectory)\App_Plugins\AccessibilityToolkit&quot; -Restore" />
+	</Target>
 
 	<!-- Exclude non-shipping folders from MSBuild globbing -->
 	<ItemGroup>
