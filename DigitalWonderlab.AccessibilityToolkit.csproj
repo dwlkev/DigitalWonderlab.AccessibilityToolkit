@@ -7,10 +7,10 @@
 		<!-- NuGet metadata -->
 		<IsPackable>true</IsPackable>
 		<PackageId>DigitalWonderlab.AccessibilityToolkit</PackageId>
-		<Version>1.10.29</Version>
+		<Version>1.10.45</Version>
 		<Authors>Digital Wonderlab</Authors>
 		<Company>Digital Wonderlab</Company>
-		<Description>Comprehensive WCAG 2.1 accessibility auditing for Umbraco 17+. 37 checks across Level A, AA, and AAA with scored results, scan history, site-wide audits, printable reports, and CSV export. Lightweight with no external dependencies — works on Umbraco Cloud and all hosting environments.</Description>
+		<Description>Comprehensive WCAG 2.1 accessibility auditing for Umbraco 17+. 37 server-side checks plus axe-core powered visual analysis — covering colour contrast, ARIA names, landmark structure, and more. Scored results, scan history, site-wide audits, printable reports, and CSV export. Works on Umbraco Cloud and all hosting environments.</Description>
 		<PackageTags>umbraco;umbraco-cms;accessibility;wcag;a11y;umbraco-marketplace</PackageTags>
 		<RepositoryUrl>https://github.com/dwlkev/AccessibilityToolkit</RepositoryUrl>
 		<PackageProjectUrl>https://github.com/dwlkev/AccessibilityToolkit</PackageProjectUrl>

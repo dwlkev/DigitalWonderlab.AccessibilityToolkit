@@ -28,6 +28,7 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
 
         this.consumeContext(UMB_DOCUMENT_WORKSPACE_CONTEXT, (context) => {
             this.#workspaceContext = context;
+            if (!context) return;
             this.observe(context.unique, (unique) => {
                 this.#nodeKey = unique;
                 // Load page history once we know the node key
@@ -251,9 +252,9 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             if (this.#visualChecksEnabled && this.#result.url) {
                 this.#showLoading(true, "Running visual checks...");
                 try {
-                    const visualIssues = await this.#runVisualChecksOnPage(this.#result.url);
+                    const { issues: visualIssues, axeRan } = await this.#runVisualChecksOnPage(this.#result.url);
                     if (visualIssues.length > 0) {
-                        this.#mergeVisualIssues(visualIssues);
+                        this.#mergeVisualIssues(visualIssues, axeRan);
 
                         // Persist merged result (with visual issues) back to server before refreshing history.
                         if (savedResultId) {
@@ -291,17 +292,19 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         }
     }
 
-    /** Run visual contrast checks via iframe */
+    /** Run axe-core enhanced checks and contrast analysis via iframe */
     async #runVisualChecksOnPage(url) {
         return new Promise((resolve, reject) => {
             const iframe = document.createElement("iframe");
             iframe.style.cssText = "position:fixed;left:-10000px;top:-10000px;width:1280px;height:900px;border:none;opacity:0;pointer-events:none;";
-            iframe.setAttribute("sandbox", "allow-same-origin");
+            // allow-scripts required for axe-core injection.
+            // allow-scripts + allow-same-origin is acceptable here: authenticated backoffice, own-site pages only.
+            iframe.setAttribute("sandbox", "allow-same-origin allow-scripts");
 
             const timeout = setTimeout(() => {
                 iframe.remove();
-                reject(new Error("Visual check timed out after 15 seconds."));
-            }, 15000);
+                reject(new Error("Visual check timed out after 30 seconds."));
+            }, 30000);
 
             iframe.addEventListener("load", async () => {
                 clearTimeout(timeout);
@@ -309,17 +312,56 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
                     const doc = iframe.contentDocument || iframe.contentWindow?.document;
                     if (!doc || !doc.body) {
                         iframe.remove();
-                        resolve([]);
+                        resolve({ issues: [], axeRan: false });
                         return;
                     }
 
-                    const issues = this.#analyzeContrastInDocument(doc);
+                    // Wait 1s for page JS to settle
+                    await new Promise(res => setTimeout(res, 1000));
+
+                    // Run axe-core enhanced checks
+                    let axeIssues = [];
+                    let axeRan = false;
+                    let axeContrastViolationRuleIds = new Set();
+                    try {
+                        await new Promise((res, rej) => {
+                            const axeScript = doc.createElement("script");
+                            axeScript.src = "https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js";
+                            axeScript.onload = res;
+                            axeScript.onerror = () => rej(new Error("axe-core script failed to load"));
+                            doc.head.appendChild(axeScript);
+                        });
+                        // Run all axe rules, filter to curated list in normalizeAxeViolations.
+                        const axeResults = await iframe.contentWindow.axe.run(doc);
+                        axeIssues = this.#normalizeAxeViolations(axeResults.violations);
+                        // Track which contrast rules axe actually found violations for.
+                        // Only suppress our DOM check's violations for those specific rules.
+                        for (const v of axeResults.violations) {
+                            if (v.id === "color-contrast" || v.id === "color-contrast-enhanced") {
+                                axeContrastViolationRuleIds.add(v.id);
+                            }
+                        }
+                        axeRan = true;
+                    } catch (axeErr) {
+                        // axe failure never blocks the scan — contrast checks still run below
+                    }
+
+                    // Our DOM contrast check runs always. When axe found real contrast violations
+                    // for a rule, suppress our equivalent findings (axe's computed-style result is
+                    // more accurate). Otherwise keep ours — including info messages as last resort.
+                    const contrastRuleMap = { "color-contrast": "visual-color-contrast", "color-contrast-enhanced": "visual-color-contrast-enhanced" };
+                    const suppressedVisualRules = new Set(
+                        [...axeContrastViolationRuleIds].map(id => contrastRuleMap[id]).filter(Boolean)
+                    );
+                    const contrastIssues = this.#analyzeContrastInDocument(doc)
+                        .filter(i => !suppressedVisualRules.has(i.ruleId) || i.impact === "info");
+
                     iframe.remove();
-                    resolve(issues);
+                    resolve({ issues: [...axeIssues, ...contrastIssues], axeRan: axeContrastViolationRuleIds !== undefined });
                 } catch (err) {
                     iframe.remove();
                     if (err.name === "SecurityError") {
-                        resolve([]);
+                        resolve({ issues: [], axeRan: false });
                     } else {
                         reject(err);
                     }
@@ -329,12 +371,93 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             iframe.addEventListener("error", () => {
                 clearTimeout(timeout);
                 iframe.remove();
-                resolve([]);
+                resolve({ issues: [], axeRan: false });
             });
 
             iframe.src = url;
             document.body.appendChild(iframe);
         });
+    }
+
+    /** Normalize axe violations into our issue format, filtered to our curated rule list and user's WCAG level */
+    #normalizeAxeViolations(violations) {
+        const allowedRules = new Set(AccessibilityToolkitView.#AXE_RULES);
+        const issues = [];
+        for (const v of violations) {
+            if (!allowedRules.has(v.id)) continue;
+            if (!this.#axeMatchesLevel(v.tags)) continue;
+            for (const node of v.nodes) {
+                const issue = {
+                    ruleId: v.id,
+                    description: v.description,
+                    category: this.#axeCategory(v.id),
+                    level: this.#axeLevel(v.tags),
+                    wcagCriterion: this.#axeWcagCriterion(v.tags),
+                    impact: v.impact || "moderate",
+                    element: node.html,
+                    selector: Array.isArray(node.target) ? node.target.join(" > ") : String(node.target),
+                    recommendation: v.help,
+                    wcagUrl: v.helpUrl,
+                    source: "axe",
+                };
+                // For contrast violations, extract axe's computed color data so
+                // the report renderer can show colour swatches and ratio detail.
+                if (v.id === "color-contrast" || v.id === "color-contrast-enhanced") {
+                    const data = node.any?.[0]?.data ?? node.all?.[0]?.data;
+                    if (data) {
+                        if (data.fgColor) issue.fgColor = this.#hexToRgb(data.fgColor);
+                        if (data.bgColor) issue.bgColor = this.#hexToRgb(data.bgColor);
+                        if (data.contrastRatio) {
+                            issue.contrastRatio = data.contrastRatio;
+                            issue.description = `Text has insufficient contrast ratio ${Number(data.contrastRatio).toFixed(2)}:1`
+                                + (data.expectedContrastRatio ? ` (requires ${data.expectedContrastRatio})` : "")
+                                + (data.fontSize ? ` — ${data.fontSize} text` : "");
+                        }
+                    }
+                }
+                issues.push(issue);
+            }
+        }
+        return issues;
+    }
+
+    /** Returns true if axe rule tags match the user's selected WCAG level */
+    #axeMatchesLevel(tags) {
+        const level = (this.#level || "AA").toUpperCase();
+        const isA = tags.some(t => t === "wcag2a" || t === "wcag21a");
+        const isAA = tags.some(t => t === "wcag2aa" || t === "wcag21aa" || t === "wcag22aa");
+        if (level === "A") return isA || tags.includes("best-practice");
+        if (level === "AA") return isA || isAA || tags.includes("best-practice");
+        return true; // AAA: include everything
+    }
+
+    #axeCategory(ruleId) {
+        const design = new Set(["color-contrast", "meta-viewport-large", "link-in-text-block"]);
+        const content = new Set(["blink", "marquee", "meta-refresh"]);
+        return design.has(ruleId) ? "Design" : content.has(ruleId) ? "Content" : "Code";
+    }
+
+    #axeLevel(tags) {
+        if (tags.some(t => t.includes("aaa"))) return "AAA";
+        if (tags.some(t => t === "wcag2aa" || t === "wcag21aa" || t === "wcag22aa")) return "AA";
+        if (tags.some(t => t === "wcag2a" || t === "wcag21a")) return "A";
+        return "A"; // best-practice rules treated as A for scoring
+    }
+
+    #axeWcagCriterion(tags) {
+        const t = tags.find(t => /^wcag\d+$/.test(t));
+        if (!t) return "Best Practice";
+        const n = t.replace("wcag", "");
+        return `${n[0]}.${n[1]}.${n.slice(2)}`;
+    }
+
+    #hexToRgb(hex) {
+        if (!hex || hex.length < 7) return null;
+        return {
+            r: parseInt(hex.slice(1, 3), 16),
+            g: parseInt(hex.slice(3, 5), 16),
+            b: parseInt(hex.slice(5, 7), 16),
+        };
     }
 
     async #trackVisualCheckFailure(errorCode) {
@@ -413,12 +536,15 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     }
 
     /** Merge visual issues into the main result */
-    #mergeVisualIssues(visualIssues) {
+    #mergeVisualIssues(visualIssues, axeRan = false) {
         const result = this.#result;
         if (!result) return;
 
+        // Count unique axe rule IDs before source is normalised
+        const axeRuleIds = new Set(visualIssues.filter(i => i.source === "axe").map(i => i.ruleId));
+
         for (const vi of visualIssues) {
-            vi.source = "visual";
+            if (!vi.source) vi.source = "visual"; // preserve "axe" source where already set
             result.issues.push(vi);
         }
 
@@ -435,6 +561,10 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
             const cat = vi.category || "Color";
             result.categorySummary[cat] = (result.categorySummary[cat] || 0) + 1;
         }
+
+        // Add axe rules to checks-run count: full curated ruleset when axe ran, else only violations found
+        result.totalChecks = (result.totalChecks || 0) +
+            (axeRan ? AccessibilityToolkitView.#AXE_RULES.length : axeRuleIds.size);
 
         // Recalculate score using the same algorithm as the server
         result.score = this.#calculateScore(result.issues);
@@ -628,7 +758,8 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
         const infoEl = this.shadowRoot.getElementById("a11y-count-info");
         if (infoEl) infoEl.textContent = result.infoCount || 0;
 
-        this.shadowRoot.getElementById("a11y-checks-run").textContent = `${result.totalChecks} checks run`;
+        const flaggedChecks = new Set(result.issues.filter(i => i.impact !== "info").map(i => i.ruleId)).size;
+        this.shadowRoot.getElementById("a11y-checks-run").textContent = `${result.totalChecks} checks run · ${flaggedChecks} flagged`;
         const previous = this.#pageHistory.find((h) => h.id !== result.resultId);
         const deltaEl = this.shadowRoot.getElementById("a11y-score-delta");
         if (deltaEl) {
@@ -887,6 +1018,35 @@ export default class AccessibilityToolkitView extends UmbElementMixin(HTMLElemen
     // --- Visual contrast analysis ---
 
     static #MAX_SCREENSHOTS_PER_PAGE = 20;
+
+    /** Curated axe-core rules that add checks not covered by our 37 server-side checks */
+    static #AXE_RULES = [
+        // Buttons & controls missing accessible names
+        "button-name", "input-button-name", "select-name",
+        // Alt text gaps (image maps, input images, objects, SVGs, role=img)
+        "area-alt", "input-image-alt", "object-alt", "role-img-alt", "svg-img-alt",
+        // Color & presentation (axe uses getComputedStyle so finds violations our server-side check misses)
+        "color-contrast", "link-in-text-block", "meta-viewport-large",
+        // Timing/motion
+        "meta-refresh", "blink", "marquee",
+        // ARIA structural
+        "aria-hidden-body", "aria-hidden-focus",
+        "aria-required-children", "aria-required-parent",
+        // ARIA naming (not covered by our aria-attributes check)
+        "aria-command-name", "aria-input-field-name", "aria-toggle-field-name",
+        "aria-tab-name", "aria-tooltip-name", "aria-meter-name", "aria-progressbar-name",
+        "aria-deprecated-role",
+        // Interactive patterns
+        "nested-interactive", "frame-focusable-content", "scrollable-region-focusable",
+        "server-side-image-map",
+        // IDs & language
+        "duplicate-id-aria", "html-xml-lang-mismatch",
+        // Forms
+        "form-field-multiple-labels", "label-title-only",
+        // Page structure (best practice)
+        "empty-heading", "page-has-heading-one", "landmark-one-main",
+        "skip-link", "empty-table-header", "summary-name",
+    ];
 
     #analyzeContrastInDocument(doc) {
         const issues = [];

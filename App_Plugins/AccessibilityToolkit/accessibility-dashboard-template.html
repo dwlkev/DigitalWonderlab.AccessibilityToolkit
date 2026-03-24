@@ -164,7 +164,7 @@
             <div class="a11y-faq-list">
                 <details class="a11y-faq-item">
                     <summary>What do visual checks currently cover?</summary>
-                    <p>Visual checks analyse computed color contrast on the rendered page. They complement the 37 server-side HTML checks by catching issues that only appear after CSS is applied.</p>
+                    <p>Visual checks render each page in a sandboxed frame and run axe-core plus a colour contrast analyser against the live DOM. This catches issues that only appear after CSS is applied — such as contrast failures, missing ARIA names, and landmark structure — that cannot be detected from HTML source alone. They complement the server-side checks, which cover 37 additional WCAG rules at parse time.</p>
                 </details>
                 <details class="a11y-faq-item">
                     <summary>Why might screenshot previews be missing?</summary>

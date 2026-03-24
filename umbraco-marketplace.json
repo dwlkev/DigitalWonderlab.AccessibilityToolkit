@@ -14,7 +14,7 @@
   },
   "Category": "Editor Tools",
   "IssueTrackerUrl": "https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/issues",
-  "Description": "Comprehensive WCAG 2.1 accessibility auditing for Umbraco backoffice. 37 checks across Level A, AA, and AAA with scored results, scan history, site-wide audits, printable reports, and CSV export. Lightweight with no external dependencies — works on Umbraco Cloud and all hosting environments out of the box.",
+  "Description": "Comprehensive WCAG 2.1 accessibility auditing for Umbraco backoffice. 37 server-side checks plus axe-core powered visual analysis — covering colour contrast, ARIA names, landmark structure, and more. Scored results, scan history, site-wide audits, printable reports, and CSV export. Works on Umbraco Cloud and all hosting environments out of the box.",
   "LicenseTypes": [ "Free" ],
   "PackageType": "Package",
   "Screenshots": [

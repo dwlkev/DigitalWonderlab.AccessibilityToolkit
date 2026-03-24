@@ -1,6 +1,6 @@
 # Accessibility Toolkit for Umbraco
 
-An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility checking to your content workflow. Editors can run checks on individual pages or audit entire site sections, with instant scored reports, scan history, and CSV exports.
+An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility checking to your content workflow. Combines 37 server-side HTML checks with axe-core powered visual analysis — covering colour contrast, ARIA names, landmark structure, and more. Editors can run checks on individual pages or audit entire site sections, with instant scored reports, scan history, and CSV exports.
 
 ## Screenshots
 
@@ -20,11 +20,11 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 
 ### Page-Level Checks
 - **Accessibility tab** on every content page in the workspace
-- **37 WCAG checks** across Level A, AA, and AAA plus client-side visual checks
+- **37 server-side WCAG checks** across Level A, AA, and AAA
 - **Score gauge** (0-100) with colour-coded rating
 - **Issues grouped by Content / Code / Design** with impact badges (critical/serious/moderate/minor)
 - **Expandable detail rows** showing element snippets, selectors, and fix recommendations
-- **Visual checks** run automatically as part of each scan — computed colour contrast analysis using the browser's rendering engine
+- **axe-core visual checks** run automatically — ARIA names, colour contrast, landmark structure, and 30+ additional rules detected against the live rendered DOM
 - **Element preview snippets** generated for visual issues using browser canvas
 - **Category filtering** and **impact sorting**
 - **Severity filtering** (critical/serious/moderate/minor)
@@ -49,9 +49,11 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 - **Settings** with visible license status panel, collapsible exclusions, and data management
 
 ### Visual Checks
-- Browser-based accessibility analysis using the editor's own browser
-- Catches issues that static HTML analysis cannot: computed colour contrast ratios against real rendered backgrounds
-- Runs automatically as part of every scan — no separate step required
+- Browser-based analysis powered by **axe-core** running against the live rendered DOM in a sandboxed iframe
+- Detects issues that static HTML analysis cannot: computed colour contrast, missing ARIA names, landmark structure, and more
+- 30+ additional rules covering WCAG A, AA, and AAA criteria complementing the 37 server-side checks
+- Runs automatically as part of every scan — no separate step or infrastructure required
+- Falls back gracefully if axe is unavailable (offline/intranet): colour contrast checks still run via DOM walking
 - Element preview snippets are captured inline for visual context in reports
 - Site audits use the selected content node picker only (no manual GUID entry)
 
@@ -60,7 +62,8 @@ An Umbraco backoffice package that adds comprehensive WCAG 2.1 accessibility che
 - Umbraco 17+
 - .NET 10.0
 - Compatible with Umbraco Cloud, Azure App Service, and all standard hosting environments
-- No external dependencies — no headless browsers, no server-side binaries, no additional infrastructure required
+- No server-side dependencies — no headless browsers, no server-side binaries, no additional infrastructure required
+- Visual checks load axe-core from cdnjs at runtime in the editor's browser; falls back gracefully if unavailable
 
 ## Installation
 
@@ -164,7 +167,7 @@ You can exclude specific document types and individual pages from site audits vi
 
 ## How It Works
 
-The tool fetches the published HTML of each page server-side using `HttpClient`, parses it with HtmlAgilityPack, and runs 37 rule-based checks against the DOM. After the server-side analysis, visual checks run client-side in a hidden iframe using the editor's browser to detect computed colour contrast issues against real rendered backgrounds. Results are stored in the database (`dwAccessibilityResults` for per-page scans, `dwAccessibilityAudits` for full site audits) so history and re-exports are always available.
+The tool fetches the published HTML of each page server-side using `HttpClient`, parses it with HtmlAgilityPack, and runs 37 rule-based checks against the DOM. After the server-side analysis, visual checks run client-side: the page is loaded in a sandboxed iframe in the editor's browser, axe-core is injected to run 30+ additional accessibility rules against the live rendered DOM, and a colour contrast analyser walks the computed styles. Issues from both stages are combined, deduplicated, and scored. Results are stored in the database (`dwAccessibilityResults` for per-page scans, `dwAccessibilityAudits` for full site audits) so history and re-exports are always available.
 
 ## Issues / Suggestions
 

@@ -1,6 +1,6 @@
 # Accessibility Toolkit
 
-An Umbraco backoffice package that adds an **Accessibility** tab to every content page. Run WCAG accessibility checks against published pages and get a scored report with actionable recommendations.
+An Umbraco backoffice package that adds an **Accessibility** tab to every content page. Combines 37 server-side WCAG checks with **axe-core** powered visual analysis — covering colour contrast, ARIA names, landmark structure, and more — to give you a scored, actionable report on every page.
 
 ![Page scan](https://raw.githubusercontent.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/main/screenshots/accessibility-page-scan.jpg)
 
@@ -14,8 +14,9 @@ An Umbraco backoffice package that adds an **Accessibility** tab to every conten
 
 ## Features
 - Workspace view tab on every content page
-- 37 WCAG checks across Level A, AA, and AAA
-- Score gauge (0-100) with impact breakdown
+- **37 server-side WCAG checks** across Level A, AA, and AAA
+- **axe-core visual checks** — 30+ additional rules run against the live rendered DOM in the editor's browser: colour contrast, ARIA names, landmark structure, meta-refresh, and more
+- Score gauge (0-100) with checks run / checks flagged summary
 - Issues grouped by **Content / Code / Design** categories with severity badges (critical, serious, moderate, minor)
 - Expandable issue details with element snippets, selectors, and fix recommendations
 - Severity filtering and score delta indicator compared with previous scan
@@ -24,14 +25,15 @@ An Umbraco backoffice package that adds an **Accessibility** tab to every conten
 - WCAG level selection (A, AA, AAA)
 - Content dashboard with Recent Reports, Site Audit, FAQ, Help & Services, and Settings
 - Site audits across a selected content subtree with saved audit history and re-export
-- Browser-based visual contrast checks with inline preview snippets and graceful fallback
+- Element preview snippets captured inline for visual issues
 - Settings license panel showing mode/status/features/expiry/domain
 
 ## Compatibility
 - Umbraco 17+
 - .NET 10.0
 - Works on Umbraco Cloud, Azure App Service, and all standard hosting environments
-- Lightweight — no headless browsers, no server-side binaries, no additional infrastructure
+- No server-side dependencies — no headless browsers, no server-side binaries, no additional infrastructure
+- axe-core loads client-side in the editor's browser; falls back gracefully if unavailable (offline/intranet)
 
 ## Installation
 - Install via NuGet https://www.nuget.org/packages/DigitalWonderlab.AccessibilityToolkit/latest

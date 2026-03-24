@@ -1017,9 +1017,9 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                     if (visualEnabled && pageResult.url) {
                         progressText.textContent = `Visual checks for page ${i + 1}: ${page.name}...`;
                         try {
-                            const visualIssues = await this.#runVisualChecksOnPage(pageResult.url);
-                            if (visualIssues.length > 0) {
-                                this.#mergeVisualIssuesIntoResult(pageResult, visualIssues);
+                            const { issues: visualIssues, axeRan } = await this.#runVisualChecksOnPage(pageResult.url, level);
+                            if (visualIssues.length > 0 || axeRan) {
+                                this.#mergeVisualIssuesIntoResult(pageResult, visualIssues, axeRan);
                                 // Persist visual-merged result to DB so Recent Reports matches
                                 if (savedResultId) {
                                     await this.#persistMergedResult(savedResultId, pageResult);
@@ -1594,10 +1594,12 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
             }
 
             // Use fgColor/bgColor from visual checks if available
+            // axe provides hex strings; DOM contrast check provides {r,g,b} objects
+            const toHex = (c) => typeof c === "string" ? c : this.#rgbToHex(c);
             let fg = null, bg = null;
             if (issue.fgColor && issue.bgColor) {
-                fg = this.#rgbToHex(issue.fgColor);
-                bg = this.#rgbToHex(issue.bgColor);
+                fg = toHex(issue.fgColor);
+                bg = toHex(issue.bgColor);
             } else {
                 const colors = this.#extractColorsFromElement(issue.element || "");
                 fg = colors.fg;
@@ -1875,6 +1877,24 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
 
     static #MAX_SCREENSHOTS_PER_PAGE = 20;
 
+    static #AXE_RULES = [
+        "button-name", "input-button-name", "select-name",
+        "area-alt", "input-image-alt", "object-alt", "role-img-alt", "svg-img-alt",
+        "color-contrast", "link-in-text-block", "meta-viewport-large",
+        "meta-refresh", "blink", "marquee",
+        "aria-hidden-body", "aria-hidden-focus",
+        "aria-required-children", "aria-required-parent",
+        "aria-command-name", "aria-input-field-name", "aria-toggle-field-name",
+        "aria-tab-name", "aria-tooltip-name", "aria-meter-name", "aria-progressbar-name",
+        "aria-deprecated-role",
+        "nested-interactive", "frame-focusable-content", "scrollable-region-focusable",
+        "server-side-image-map",
+        "duplicate-id-aria", "html-xml-lang-mismatch",
+        "form-field-multiple-labels", "label-title-only",
+        "empty-heading", "page-has-heading-one", "landmark-one-main",
+        "skip-link", "empty-table-header", "summary-name",
+    ];
+
     #visualChecksEnabled = null;
 
     async #checkVisualEnabled() {
@@ -1890,32 +1910,140 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         return this.#visualChecksEnabled;
     }
 
-    async #runVisualChecksOnPage(url) {
+    async #runVisualChecksOnPage(url, level) {
         return new Promise((resolve) => {
             const iframe = document.createElement("iframe");
             iframe.style.cssText = "position:fixed;left:-10000px;top:-10000px;width:1280px;height:900px;border:none;opacity:0;pointer-events:none;";
-            iframe.setAttribute("sandbox", "allow-same-origin");
+            iframe.setAttribute("sandbox", "allow-same-origin allow-scripts");
 
-            const timeout = setTimeout(() => { iframe.remove(); resolve([]); }, 15000);
+            const timeout = setTimeout(() => { iframe.remove(); resolve({ issues: [], axeRan: false }); }, 30000);
 
             iframe.addEventListener("load", async () => {
                 clearTimeout(timeout);
+                await new Promise(r => setTimeout(r, 1000));
                 try {
                     const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                    if (!doc || !doc.body) { iframe.remove(); resolve([]); return; }
-                    const issues = this.#analyzeContrastInDocument(doc);
+                    if (!doc || !doc.body) { iframe.remove(); resolve({ issues: [], axeRan: false }); return; }
+
+                    let axeIssues = [], axeRan = false, axeContrastViolationRuleIds = new Set();
+                    try {
+                        const script = iframe.contentDocument.createElement("script");
+                        script.src = "https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.10.2/axe.min.js";
+                        await new Promise((res, rej) => {
+                            script.onload = res;
+                            script.onerror = rej;
+                            iframe.contentDocument.head.appendChild(script);
+                        });
+                        const axeResults = await iframe.contentWindow.axe.run(doc);
+                        axeIssues = this.#normalizeAxeViolations(axeResults.violations, level);
+                        for (const v of axeResults.violations) {
+                            if (["color-contrast", "link-in-text-block"].includes(v.id)) {
+                                axeContrastViolationRuleIds.add(v.id);
+                            }
+                        }
+                        axeRan = true;
+                    } catch (axeErr) {
+                        // axe unavailable — fall back to DOM contrast check only
+                    }
+
+                    const suppressedVisualRules = axeContrastViolationRuleIds;
+                    const contrastIssues = this.#analyzeContrastInDocument(doc)
+                        .filter(i => !suppressedVisualRules.has(i.ruleId) || i.impact === "info");
+
                     iframe.remove();
-                    resolve(issues);
+                    resolve({ issues: [...axeIssues, ...contrastIssues], axeRan });
                 } catch {
                     iframe.remove();
-                    resolve([]);
+                    resolve({ issues: [], axeRan: false });
                 }
             });
 
-            iframe.addEventListener("error", () => { clearTimeout(timeout); iframe.remove(); resolve([]); });
+            iframe.addEventListener("error", () => { clearTimeout(timeout); iframe.remove(); resolve({ issues: [], axeRan: false }); });
             iframe.src = url;
             document.body.appendChild(iframe);
         });
+    }
+
+    #normalizeAxeViolations(violations, level) {
+        const allowedRules = new Set(AccessibilityToolkitDashboard.#AXE_RULES);
+        const issues = [];
+        for (const v of violations) {
+            if (!allowedRules.has(v.id)) continue;
+            if (!this.#axeMatchesLevel(v.tags, level)) continue;
+            for (const node of (v.nodes || [])) {
+                const issue = {
+                    ruleId: v.id,
+                    source: "axe",
+                    impact: v.impact || "serious",
+                    category: this.#axeCategory(v.id),
+                    level: this.#axeLevel(v.tags),
+                    wcagCriterion: this.#axeWcagCriterion(v.tags),
+                    message: v.help,
+                    helpUrl: v.helpUrl,
+                    selector: node.target?.[0] || "",
+                    snippet: node.html || "",
+                };
+                if (v.id === "color-contrast" || v.id === "link-in-text-block") {
+                    const data = node.any?.[0]?.data;
+                    if (data) {
+                        issue.fgColor = data.fgColor;
+                        issue.bgColor = data.bgColor;
+                        issue.contrastRatio = data.contrastRatio;
+                        issue.expectedContrastRatio = data.expectedContrastRatio;
+                        if (data.fgColor) issue.fgColorRgb = this.#hexToRgb(data.fgColor);
+                        if (data.bgColor) issue.bgColorRgb = this.#hexToRgb(data.bgColor);
+                    }
+                }
+                issues.push(issue);
+            }
+        }
+        return issues;
+    }
+
+    #axeMatchesLevel(tags, level) {
+        if (!level) return true;
+        const levelMap = {
+            "A":   ["wcag2a", "wcag21a", "wcag22a", "best-practice"],
+            "AA":  ["wcag2a", "wcag21a", "wcag22a", "wcag2aa", "wcag21aa", "wcag22aa", "best-practice"],
+            "AAA": ["wcag2a", "wcag21a", "wcag22a", "wcag2aa", "wcag21aa", "wcag22aa", "wcag2aaa", "wcag21aaa", "wcag22aaa", "best-practice"],
+        };
+        const allowed = new Set(levelMap[level] || levelMap["AA"]);
+        return (tags || []).some(t => allowed.has(t));
+    }
+
+    #axeCategory(ruleId) {
+        const content = ["area-alt", "input-image-alt", "object-alt", "role-img-alt", "svg-img-alt", "empty-heading", "empty-table-header", "summary-name", "page-has-heading-one"];
+        const code = ["button-name", "input-button-name", "select-name", "aria-hidden-body", "aria-hidden-focus", "aria-required-children", "aria-required-parent", "aria-command-name", "aria-input-field-name", "aria-toggle-field-name", "aria-tab-name", "aria-tooltip-name", "aria-meter-name", "aria-progressbar-name", "aria-deprecated-role", "nested-interactive", "frame-focusable-content", "scrollable-region-focusable", "duplicate-id-aria", "html-xml-lang-mismatch", "form-field-multiple-labels", "label-title-only", "skip-link", "landmark-one-main", "server-side-image-map"];
+        if (content.includes(ruleId)) return "Content";
+        if (code.includes(ruleId)) return "Code";
+        return "Design";
+    }
+
+    #axeLevel(tags) {
+        if (!tags) return "AA";
+        if (tags.some(t => /wcag\d+aaa/i.test(t))) return "AAA";
+        if (tags.some(t => /wcag\d+aa(?!a)/i.test(t))) return "AA";
+        if (tags.some(t => /wcag\d+a(?!a)/i.test(t))) return "A";
+        return "AA";
+    }
+
+    #axeWcagCriterion(tags) {
+        if (!tags) return "Best Practice";
+        const match = (tags || []).find(t => /^wcag\d{3,4}$/.test(t));
+        if (!match) return "Best Practice";
+        const digits = match.replace("wcag", "");
+        if (digits.length === 3) return `${digits[0]}.${digits[1]}.${digits[2]}`;
+        if (digits.length === 4) return `${digits[0]}.${digits[1]}.${digits[2]}.${digits[3]}`;
+        return match;
+    }
+
+    #hexToRgb(hex) {
+        if (!hex) return null;
+        const clean = hex.replace("#", "");
+        const r = parseInt(clean.substring(0, 2), 16);
+        const g = parseInt(clean.substring(2, 4), 16);
+        const b = parseInt(clean.substring(4, 6), 16);
+        return isNaN(r) ? null : { r, g, b };
     }
 
     async #trackVisualCheckFailure(errorCode) {
@@ -2182,15 +2310,26 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
         return `#${hex(color.r)}${hex(color.g)}${hex(color.b)}`;
     }
 
-    #mergeVisualIssuesIntoResult(pageResult, visualIssues) {
-        if (!visualIssues || visualIssues.length === 0) return;
-        pageResult.issues = [...(pageResult.issues || []), ...visualIssues];
-        pageResult.totalIssues = pageResult.issues.length;
-        pageResult.criticalCount = pageResult.issues.filter(i => i.impact === "critical").length;
-        pageResult.seriousCount = pageResult.issues.filter(i => i.impact === "serious").length;
-        pageResult.moderateCount = pageResult.issues.filter(i => i.impact === "moderate").length;
-        pageResult.minorCount = pageResult.issues.filter(i => i.impact === "minor").length;
+    #mergeVisualIssuesIntoResult(pageResult, visualIssues, axeRan) {
+        const tagged = (visualIssues || []).map(vi => {
+            if (!vi.source) vi.source = "visual";
+            return vi;
+        });
+        if (tagged.length > 0) {
+            pageResult.issues = [...(pageResult.issues || []), ...tagged];
+        }
+        const nonInfoIssues = pageResult.issues.filter(i => i.impact !== "info");
+        pageResult.totalIssues = nonInfoIssues.length;
+        pageResult.criticalCount = nonInfoIssues.filter(i => i.impact === "critical").length;
+        pageResult.seriousCount = nonInfoIssues.filter(i => i.impact === "serious").length;
+        pageResult.moderateCount = nonInfoIssues.filter(i => i.impact === "moderate").length;
+        pageResult.minorCount = nonInfoIssues.filter(i => i.impact === "minor").length;
         pageResult.score = this.#calculateScore(pageResult.issues);
+        const serverChecks = pageResult.totalChecks || 37;
+        const axeExtra = axeRan ? AccessibilityToolkitDashboard.#AXE_RULES.length : 0;
+        pageResult.totalChecks = serverChecks + axeExtra;
+        const flaggedRuleIds = new Set(pageResult.issues.filter(i => i.impact !== "info").map(i => i.ruleId).filter(Boolean));
+        pageResult.flaggedChecks = flaggedRuleIds.size;
     }
 
     /** Persist visual-merged result back to the DB so Recent Reports stays consistent */
