@@ -21,7 +21,8 @@ public class AddDatabaseIndexes : MigrationBase
                     .OnTable("dwAccessibilityResults")
                     .OnColumn("ContentNodeKey").Ascending()
                     .OnColumn("ScannedAt").Descending()
-                    .WithOptions().NonClustered();
+                    .WithOptions().NonClustered()
+                    .Do();
             }
         }
 
@@ -33,7 +34,8 @@ public class AddDatabaseIndexes : MigrationBase
                     .OnTable("dwAccessibilityAudits")
                     .OnColumn("RootNodeKey").Ascending()
                     .OnColumn("ScannedAt").Descending()
-                    .WithOptions().NonClustered();
+                    .WithOptions().NonClustered()
+                    .Do();
             }
         }
     }
