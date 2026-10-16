@@ -1,5 +1,10 @@
 // Shared DWL package telemetry client. CANONICAL COPY lives in umbraco-plugins/DigitalWonderlab.UmbracoTelemetry;
 // packages carry a vendored copy (sync-telemetry.sh). Do not edit the vendored copies.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using System.Collections.Concurrent;
 
 namespace DigitalWonderlab.Telemetry;

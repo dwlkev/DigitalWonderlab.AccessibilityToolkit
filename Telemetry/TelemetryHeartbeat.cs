@@ -1,5 +1,10 @@
 // Shared DWL package telemetry client. CANONICAL COPY lives in umbraco-plugins/DigitalWonderlab.UmbracoTelemetry;
 // packages carry a vendored copy (sync-telemetry.sh). Do not edit the vendored copies.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using System.Net.Http.Json;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
@@ -58,6 +63,16 @@ internal sealed class TelemetryPayloadBuilder
         _keyValues.SetValue(KeyPrefix + productId + ".CreatedUtc", DateTime.UtcNow.ToString("O"));
         return id;
     }
+
+    /// <summary>
+    /// Backoffice toggle for packages with no settings store of their own (dashboards): kept in
+    /// umbracoKeyValue next to the install id. On unless explicitly switched off.
+    /// </summary>
+    public bool IsProductToggleOn(string productId)
+        => !string.Equals(_keyValues.GetValue(KeyPrefix + productId + ".Enabled"), "false", StringComparison.OrdinalIgnoreCase);
+
+    public void SetProductToggle(string productId, bool enabled)
+        => _keyValues.SetValue(KeyPrefix + productId + ".Enabled", enabled ? "true" : "false");
 
     public DateTime? GetLastSentUtc(string productId)
         => DateTime.TryParse(_keyValues.GetValue(KeyPrefix + productId + ".LastSentUtc"), null,
