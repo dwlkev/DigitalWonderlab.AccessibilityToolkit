@@ -14,10 +14,9 @@
 
     <uui-box id="a11y-telemetry-notice" class="a11y-telemetry-notice" style="display:none;">
         <p>
-            To improve functionality and fix bugs faster, we collect minimal anonymous telemetry.
-            No URLs, content, user identity, selectors, or screenshots are collected.
-            Only high-level stats (for example scan failures, run counts, and timings) are included.
-            You can change this anytime in Settings.
+            To improve the toolkit and fix bugs faster, this site sends Digital Wonderlab a small anonymous
+            report once a day: a random install ID, versions, and rough usage counts. No hostnames, URLs, content,
+            user identity, selectors or screenshots are sent. You can see exactly what is sent, or turn it off, in Settings.
         </p>
     </uui-box>
 
@@ -247,14 +246,20 @@
                 <div class="a11y-settings-section">
                     <h4>Anonymous Telemetry</h4>
                     <p class="a11y-settings-desc">
-                        Send minimal anonymous usage and reliability stats to help improve the toolkit.
-                        No URLs, content, user identity, selectors, or screenshots are sent.
+                        Once a day this site sends Digital Wonderlab a small anonymous report: a random install ID,
+                        package, Umbraco and .NET versions, hosting type, and rough usage counts (for example
+                        "10-99 scans"). No hostnames, URLs, page content, user identity, selectors or screenshots are sent.
+                        It can also be turned off for every DWL package with <code>DigitalWonderlab:Telemetry:Enabled = false</code>.
                     </p>
                     <label class="a11y-telemetry-toggle">
                         <input type="checkbox" id="a11y-telemetry-enabled" />
                         <span>Enable anonymous telemetry</span>
                     </label>
                     <div id="a11y-telemetry-status" class="a11y-telemetry-status"></div>
+                    <details id="a11y-telemetry-preview-box" class="a11y-settings-collapse">
+                        <summary>Show exactly what is sent</summary>
+                        <pre id="a11y-telemetry-preview" style="white-space:pre-wrap;font-size:12px;margin:8px 0 0;">Loading...</pre>
+                    </details>
                 </div>
                 <div class="a11y-settings-section">
                     <h4>Excluded Document Types</h4>

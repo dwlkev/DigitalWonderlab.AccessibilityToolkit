@@ -433,6 +433,30 @@ export default class AccessibilityToolkitDashboard extends UmbElementMixin(HTMLE
                 ? "Telemetry is currently enabled."
                 : "Telemetry is currently disabled.";
         }
+
+        const box = this.shadowRoot.getElementById("a11y-telemetry-preview-box");
+        if (box && !box.dataset.bound) {
+            box.dataset.bound = "1";
+            box.addEventListener("toggle", () => { if (box.open) this.#loadTelemetryPreview(); });
+        }
+    }
+
+    async #loadTelemetryPreview() {
+        const pre = this.shadowRoot.getElementById("a11y-telemetry-preview");
+        if (!pre) return;
+        try {
+            const resp = await fetch("/umbraco/AccessibilityToolkit/Accessibility/GetTelemetryPreview");
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            const state = !data.enabled
+                ? "Telemetry is off, so nothing is sent."
+                : !data.environmentAllowed
+                    ? "This is a Development environment, so nothing is sent."
+                    : `Sent once a day to ${data.endpoint}`;
+            pre.textContent = `${state}\n\n${JSON.stringify(data.payload, null, 2)}`;
+        } catch (err) {
+            pre.textContent = `Could not load the preview: ${err.message}`;
+        }
     }
 
     async #acknowledgeTelemetryNotice() {

@@ -1,6 +1,7 @@
 using DigitalWonderlab.AccessibilityToolkit.Checks;
 using DigitalWonderlab.AccessibilityToolkit.Migrations;
 using DigitalWonderlab.AccessibilityToolkit.Services;
+using DigitalWonderlab.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
@@ -20,10 +21,9 @@ public class AccessibilityToolkitComposer : IComposer
 
         builder.Services.AddScoped<IAccessibilityAnalyzer, AccessibilityAnalyzer>();
         builder.Services.AddScoped<IAccessibilityResultStore, AccessibilityResultStore>();
-        builder.Services.AddScoped<IAccessibilityTelemetryService, AccessibilityTelemetryService>();
-        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<IAccessibilityTelemetryService, AccessibilityTelemetryService>();
         builder.Services.AddSingleton<IAccessibilityLicenceService, AccessibilityLicenceService>();
-        builder.Services.AddHttpClient("AccessibilityToolkitTelemetry");
+        builder.Services.AddDwlTelemetryProduct<AccessibilityTelemetryContributor>();
 
         builder.AddNotificationHandler<UmbracoApplicationStartingNotification, RunAccessibilityMigration>();
 

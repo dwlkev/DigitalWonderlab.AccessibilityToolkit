@@ -1,3 +1,5 @@
+using DigitalWonderlab.Telemetry;
+using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using System.Diagnostics;
 using DigitalWonderlab.AccessibilityToolkit.Models;
@@ -483,6 +485,21 @@ public class AccessibilityController : UmbracoApiController
         {
             enabled,
             acknowledged
+        });
+    }
+
+    /// <summary>The exact heartbeat this site would send next, shown in the Settings tab.</summary>
+    [HttpGet]
+    public IActionResult GetTelemetryPreview()
+    {
+        var builder = HttpContext.RequestServices.GetRequiredService<TelemetryPayloadBuilder>();
+        var contributor = HttpContext.RequestServices.GetServices<ITelemetryContributor>().First(c => c.ProductId == "accessibility-toolkit");
+        return Ok(new
+        {
+            endpoint = builder.Endpoint,
+            enabled = builder.GloballyEnabled && contributor.IsEnabled(),
+            environmentAllowed = builder.EnvironmentAllowed,
+            payload = builder.Build(contributor)
         });
     }
 

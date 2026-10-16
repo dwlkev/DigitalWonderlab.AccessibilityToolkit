@@ -157,9 +157,20 @@ No configuration is required. The package works out of the box with all features
 
 ### Telemetry
 
-The package collects anonymous usage telemetry to help improve the product. This is opt-out via the **Settings** tab on the dashboard.
+Once a day the package sends Digital Wonderlab a small anonymous report so we know how many sites use it, on which versions, and whether scans are failing. It is on by default and easy to turn off.
 
-No page URLs, page content, or personally identifiable information is collected. Telemetry events include scan and audit outcomes (scores, durations, pass/fail) with an anonymised site hash.
+**What is sent:** a random install ID (generated on first run, stored in your Umbraco database, not derived from anything about your site), the package, Umbraco and .NET versions, the environment type (Production, Staging, Development), hosting type (Umbraco Cloud, Azure App Service or other), database type, and rough counts in bands such as `10-99`: pages checked, scans and audits completed, scan and visual-check failures, which WCAG levels were used, and whether a Pro licence is active.
+
+**What is never sent:** hostnames, URLs, page content, scores per page, editor or member identity, IP addresses (beyond what any HTTPS request carries; they are not stored), selectors or screenshots.
+
+**See it:** dashboard **Settings** tab, "Show exactly what is sent".
+
+**Turn it off**, any of:
+- the toggle on the dashboard **Settings** tab;
+- `"AccessibilityToolkit": { "Telemetry": { "Enabled": false } }` in appsettings;
+- `"DigitalWonderlab": { "Telemetry": { "Enabled": false } }` to turn it off for every Digital Wonderlab package.
+
+Local development (`ASPNETCORE_ENVIRONMENT=Development`) never sends anything. Data is kept for 13 months.
 
 ### Audit Exclusions
 
