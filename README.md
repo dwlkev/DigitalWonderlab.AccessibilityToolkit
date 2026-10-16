@@ -155,23 +155,6 @@ Page-level run history (in the content workspace Accessibility tab) also include
 
 No configuration is required. The package works out of the box with all features enabled.
 
-### Telemetry
-
-Once a day the package sends us a small anonymous report so we know how many sites use it, on which versions, and whether scans are failing. It is on by default and easy to turn off.
-
-**What is sent:** a random install ID (generated on first run, stored in your Umbraco database, not derived from anything about your site), the package, Umbraco and .NET versions, the environment type (Production, Staging, Development), hosting type (Umbraco Cloud, Azure App Service or other), database type, and rough counts in bands such as `10-99`: pages checked, scans and audits completed, scan and visual-check failures, which WCAG levels were used, and whether a Pro licence is active.
-
-**What is never sent:** hostnames, URLs, page content, scores per page, editor or member identity, IP addresses (beyond what any HTTPS request carries; they are not stored), selectors or screenshots.
-
-**See it:** dashboard **Settings** tab, "Show exactly what is sent".
-
-**Turn it off**, any of:
-- the toggle on the dashboard **Settings** tab;
-- `"AccessibilityToolkit": { "Telemetry": { "Enabled": false } }` in appsettings;
-- `"DigitalWonderlab": { "Telemetry": { "Enabled": false } }` to turn it off for every Digital Wonderlab package.
-
-Local development (`ASPNETCORE_ENVIRONMENT=Development`) never sends anything. Data is kept for 13 months.
-
 ### Audit Exclusions
 
 You can exclude specific document types and individual pages from site audits via the **Settings** tab on the dashboard. Excluded items are stored in the database and persist across restarts.
@@ -184,8 +167,4 @@ The tool fetches the published HTML of each page server-side using `HttpClient`,
 
 To report an issue or suggest a feature, please use the GitHub issue tracker:
 https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/issues
-
-
-
-
 

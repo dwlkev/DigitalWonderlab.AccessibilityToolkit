@@ -42,7 +42,6 @@ An Umbraco backoffice package that adds an **Accessibility** tab to every conten
 
 ## Current Release Notes
 - All features enabled out of the box — no configuration required.
-- 1.11.0: telemetry is now one small anonymous report a day (random install ID, versions, rough usage bands) instead of per-scan events, and no longer includes a site hash or browser language. See exactly what is sent, or turn it off, in the dashboard Settings tab.
 
 ## Issues / Suggestions
 - To report an issue or suggest a feature please use the GitHub issue tracker - https://github.com/dwlkev/DigitalWonderlab.AccessibilityToolkit/issues
