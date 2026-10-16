@@ -157,7 +157,7 @@ No configuration is required. The package works out of the box with all features
 
 ### Telemetry
 
-Once a day the package sends Digital Wonderlab a small anonymous report so we know how many sites use it, on which versions, and whether scans are failing. It is on by default and easy to turn off.
+Once a day the package sends us a small anonymous report so we know how many sites use it, on which versions, and whether scans are failing. It is on by default and easy to turn off.
 
 **What is sent:** a random install ID (generated on first run, stored in your Umbraco database, not derived from anything about your site), the package, Umbraco and .NET versions, the environment type (Production, Staging, Development), hosting type (Umbraco Cloud, Azure App Service or other), database type, and rough counts in bands such as `10-99`: pages checked, scans and audits completed, scan and visual-check failures, which WCAG levels were used, and whether a Pro licence is active.
 

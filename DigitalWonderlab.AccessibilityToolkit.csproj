@@ -7,7 +7,11 @@
 		<!-- NuGet metadata -->
 		<IsPackable>true</IsPackable>
 		<PackageId>DigitalWonderlab.AccessibilityToolkit</PackageId>
-		<Version>1.11.0</Version>
+		<Version>1.11.1</Version>
+		<!-- No build-machine .pdb path inside the published DLL (fixed in 1.11.1; 1.11.0 and earlier embed it). -->
+		<DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+		<DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+		<EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
 		<Authors>Digital Wonderlab</Authors>
 		<Company>Digital Wonderlab</Company>
 		<Description>Comprehensive WCAG 2.1 accessibility auditing for Umbraco 17+. 37 server-side checks plus axe-core powered visual analysis — covering colour contrast, ARIA names, landmark structure, and more. Scored results, scan history, site-wide audits, printable reports, and CSV export. Works on Umbraco Cloud and all hosting environments.</Description>
